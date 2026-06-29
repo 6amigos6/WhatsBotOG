@@ -29,7 +29,13 @@ const RAW_HOST = (PLATFORM_HOSTS[0] || "").replace(/^https?:\/\//, "").replace(/
 const getURL = () => {
   if (RAW_HOST && RAW_HOST !== "localhost" && !RAW_HOST.includes("localhost") && !RAW_HOST.includes("127.0.0.1") && !RAW_HOST.startsWith("0."))
     return "https://" + RAW_HOST
-  // Last resort: try to detect from the listening server
+  // Try environment-specific URL construction
+  if (process.env.RAILWAY_STATIC_URL) return process.env.RAILWAY_STATIC_URL
+  if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL
+  if (process.env.KOYEB_URL) return process.env.KOYEB_URL
+  if (process.env.HEROKU_APP_NAME) return "https://" + process.env.HEROKU_APP_NAME + ".herokuapp.com"
+  if (process.env.FLY_APP_NAME) return "https://" + process.env.FLY_APP_NAME + ".fly.dev"
+  // Check for common reverse proxy headers
   return "http://localhost:" + PORT
 }
 

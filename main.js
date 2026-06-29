@@ -46,6 +46,7 @@ const facebookCommand = require('./commands/facebook');
 const spotifyCommand = require('./commands/spotify');
 const playCommand = require('./commands/play');
 const tiktokCommand = require('./commands/tiktok');
+const { replyCommand, handleAutoDownload, isReplyEnabled } = require('./commands/reply');
 // removed
 // removed
 const factCommand = require('./commands/fact');
@@ -236,6 +237,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
             const igPattern = /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\//i;
             const tkPattern = /https?:\/\/(?:www\.|vm\.|vt\.)?tiktok\.com\//i;
 
+            // Check reply mode for auto-download
+            if (isReplyEnabled()) {
+                const downloaded = await handleAutoDownload(sock, chatId, rawMsg, message);
+                if (downloaded) return;
+            }
+
             if (igPattern.test(rawMsg)) {
                 const instagramCommand = require('./commands/instagram');
                 await instagramCommand(sock, chatId, message);
@@ -249,16 +256,18 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
 
             if (ytPattern.test(rawMsg)) {
-                const buttons = [
-                    { buttonId: 'yt_video', buttonText: { displayText: 'Video (1)' }, type: 1 },
-                    { buttonId: 'yt_audio', buttonText: { displayText: 'Musiqi (2)' }, type: 1 },
-                ];
-                const btnMsg = await sock.sendMessage(chatId, {
-                    text: 'YouTube link detected!\n\nChoose download type:',
-                    buttons: buttons,
-                    headerType: 1,
-                });
-                global._ytDownloadTarget = { chatId, url: rawMsg.match(ytPattern)[0], message: btnMsg };
+                if (!isReplyEnabled()) {
+                    const buttons = [
+                        { buttonId: 'yt_video', buttonText: { displayText: 'Video (1)' }, type: 1 },
+                        { buttonId: 'yt_audio', buttonText: { displayText: 'Musiqi (2)' }, type: 1 },
+                    ];
+                    const btnMsg = await sock.sendMessage(chatId, {
+                        text: 'YouTube link detected!\n\nChoose download type:',
+                        buttons: buttons,
+                        headerType: 1,
+                    });
+                    global._ytDownloadTarget = { chatId, url: rawMsg.match(ytPattern)[0], message: btnMsg };
+                }
                 return;
             }
 
@@ -301,6 +310,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage.startsWith('.tts'):
                 const text = userMessage.slice(4).trim();
                 await ttsCommand(sock, chatId, text, message);
+                break;
+            case userMessage === '.reply' || userMessage.startsWith('.reply '):
+                const replyArgs = userMessage.slice(7).trim().split(/\s+/);
+                await replyCommand(sock, chatId, message, replyArgs);
+                commandExecuted = true;
                 break;
 
             case userMessage === '.settings':
