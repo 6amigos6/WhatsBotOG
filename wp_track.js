@@ -9,10 +9,27 @@ const PUBLIC_DIR = path.join(__dirname, "public")
 const MEDIA_CACHE_DIR = path.join(__dirname, "media_cache")
 const PORT = process.env.WP_TRACK_PORT || process.env.PORT || 3000
 
-const RAW_HOST = (process.env.WP_TRACK_HOST || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL || "").replace(/^https?:\/\//, "").replace(/\/+$/, "")
+// Auto-detect deployment URL from common platform environment variables
+const PLATFORM_HOSTS = [
+  process.env.WP_TRACK_HOST,
+  process.env.PUBLIC_URL,
+  process.env.APP_URL,
+  process.env.RAILWAY_PUBLIC_DOMAIN,
+  process.env.RENDER_EXTERNAL_URL,
+  process.env.KOYEB_PUBLIC_DOMAIN,
+  process.env.KOYEB_URL,
+  process.env.FLY_APP_NAME ? (process.env.FLY_APP_NAME + ".fly.dev") : null,
+  process.env.HEROKU_APP_NAME ? (process.env.HEROKU_APP_NAME + ".herokuapp.com") : null,
+  process.env.HOSTNAME,
+  process.env.DOMAIN,
+  process.env.HOST
+].filter(Boolean)
+
+const RAW_HOST = (PLATFORM_HOSTS[0] || "").replace(/^https?:\/\//, "").replace(/\/+$/, "").replace(/\s/g, "")
 const getURL = () => {
-  if (RAW_HOST && RAW_HOST !== "localhost" && !RAW_HOST.includes("localhost") && !RAW_HOST.includes("127.0.0.1"))
+  if (RAW_HOST && RAW_HOST !== "localhost" && !RAW_HOST.includes("localhost") && !RAW_HOST.includes("127.0.0.1") && !RAW_HOST.startsWith("0."))
     return "https://" + RAW_HOST
+  // Last resort: try to detect from the listening server
   return "http://localhost:" + PORT
 }
 
