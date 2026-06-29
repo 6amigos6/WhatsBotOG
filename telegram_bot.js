@@ -96,11 +96,11 @@ function startBot(token) {
       case "wp_track":
         await showWPTrack(chatId)
         break
-      case "active_sessions":
-        await showActiveSessions(chatId)
-        break
             default:
-        if (data.startsWith("cancel_logout_")) {
+        if (data.startsWith("activate_bot_")) {
+          const phone = data.replace("activate_bot_", "")
+          await doActivateBot(chatId, phone)
+        } else if (data.startsWith("cancel_logout_")) {
           await showMainMenu(chatId)
         } else if (data.startsWith("logout_")) {
           const phone = data.replace("logout_", "")
@@ -121,7 +121,7 @@ function startBot(token) {
           const phone = data.replace("reconnect_session_", "")
           await doReconnectSession(chatId, phone)
         } else if (data === "back_to_sessions") {
-          await showActiveSessions(chatId)
+          await showRestartSessions(chatId)
         }
         break
     }
@@ -178,10 +178,6 @@ async function showMainMenu(chatId) {
               { text: "\u{1F4F7} QR Code", callback_data: "qr_code" },
             ],
             [
-              { text: "\u{1F4CB} Active Sessions", callback_data: "active_sessions" },
-              { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
-            ],
-            [
               { text: "\u{1F504} Restart Sessions", callback_data: "restart" },
               { text: "\u{1F6AA} Logout Session", callback_data: "logout" },
             ],
@@ -205,10 +201,6 @@ async function showMainMenu(chatId) {
             { text: "\u{1F4F7} QR Code", callback_data: "qr_code" },
           ],
           [
-            { text: "\u{1F4CB} Active Sessions", callback_data: "active_sessions" },
-            { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
-          ],
-          [
             { text: "\u{1F504} Restart Sessions", callback_data: "restart" },
             { text: "\u{1F6AA} Logout Session", callback_data: "logout" },
           ],
@@ -220,18 +212,19 @@ async function showMainMenu(chatId) {
 
 async function showRestartSessions(chatId) {
   const sessions = wa.getAllSessions()
-  const active = sessions.filter((s) => s.status === "connected")
 
-  if (active.length === 0) {
-    await bot.sendMessage(chatId, "\u{1F504} *Restart Sessions*\n\nNo connected sessions to restart.\nConnect a number first using Pair Code or QR Code.", {
+  if (sessions.length === 0) {
+    await bot.sendMessage(chatId, "\u{1F4CB} *WhatsApp Sessions*\n\nNo WhatsApp sessions found.\nPlease connect a WhatsApp account first using *Pair Code* or *QR Code*.", {
       parse_mode: "Markdown",
       reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
     })
     return
   }
 
-  let msg = "\u{1F504} *Restart Sessions*\n\nSelect a session to restart:"
-  const keyboard = active.map((s) => [{ text: "\u{1F539} +" + s.phone, callback_data: "restart_session_" + s.phone }])
+  let msg = "\u{1F4CB} *WhatsApp Sessions*\n\nSelect a number to view session details and manage connection:"
+  const keyboard = sessions.map((s) => [
+    { text: "\u{1F539} +" + s.phone, callback_data: "session_" + s.phone }
+  ])
   keyboard.push([{ text: "\u{1F504} Restart All", callback_data: "confirm_restart" }])
   keyboard.push([{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }])
 
@@ -366,34 +359,47 @@ async function sendTrackLink(chatId, phone) {
   }
 }
 
-async function showActiveSessions(chatId) {
-  const sessions = wa.getAllSessions()
-  
-  if (sessions.length === 0) {
-    await bot.sendMessage(chatId,
-      "\u{1F4CB} *Active Sessions*\n\nNo WhatsApp sessions found.\nConnect a number using Pair Code or QR Code.",
-      {
-        parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
-      }
-    )
+
+async function showSessionMenu(chatId, phone) {
+  const session = wa.getSession(phone)
+  if (!session) {
+    await bot.sendMessage(chatId, "\u{1F4CB} *Session Details*\n\nNo session data found for +" + phone + ".\nThis number has not been connected yet.", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
+    })
     return
   }
 
-  let msg = "\u{1F4CB} *Active Sessions*\n\n"
-  sessions.forEach((s, i) => {
-    const statusEmoji = s.status === "connected" ? "\u{1F7E2}" : s.status === "reconnecting" ? "\u{1F7E1}" : "\u{1F534}"
-    const statusText = s.status === "connected" ? "Connected" : s.status === "reconnecting" ? "Reconnecting" : "Disconnected"
-    const connectedTime = s.connectedAt ? new Date(s.connectedAt).toLocaleString() : "-"
-    msg += statusEmoji + " *+" + s.phone + "*"
-    msg += "\n   Status: " + statusText
-    msg += "\n   Connected: " + connectedTime + "\n\n"
-  })
+  const isSocketActive = !!wa.activeConnections[phone]
+  const isWhatsAppConnected = session.status === "connected"
+  const isBotActive = isSocketActive && isWhatsAppConnected
+  
+  const waStatusEmoji = isWhatsAppConnected ? "\u{1F7E2}" : "\u{1F534}"
+  const waStatusText = isWhatsAppConnected ? "Connected" : (session.status === "reconnecting" ? "Reconnecting" : (session.status === "failed" ? "Failed" : "Disconnected"))
+  const botStatusEmoji = isBotActive ? "\u{1F7E2}" : "\u{1F534}"
+  const botStatusText = isBotActive ? "Active" : "Inactive"
+  const connectedTime = session.connectedAt ? new Date(session.connectedAt).toLocaleString() : "-"
+  const sessionState = session.status || "unknown"
+  const errorInfo = session.error || "-"
 
-  const keyboard = sessions.map(s => [
-    { text: "\u{1F539} +" + s.phone, callback_data: "session_" + s.phone }
-  ])
-  keyboard.push([{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }])
+  let msg = "*\u{1F4CB} Session: +" + phone + "*\n\n"
+  msg += "\u{1F517} *WhatsApp:* " + waStatusEmoji + " " + waStatusText + "\n"
+  msg += "\u{1F916} *Bot Status:* " + botStatusEmoji + " " + botStatusText + "\n"
+  msg += "\u{1F4C5} *Last Connected:* " + connectedTime + "\n"
+  msg += "\u{1F4E1} *Session State:* " + sessionState + "\n"
+  msg += "\u{26A0}\u{FE0F} *Error:* " + errorInfo + "\n"
+
+  const keyboard = []
+  
+  if (!isBotActive) {
+    keyboard.push([{ text: "\u{25B6}\u{FE0F} Activate Bot", callback_data: "activate_bot_" + phone }])
+  } else {
+    keyboard.push([{ text: "\u{1F504} Restart Connection", callback_data: "restart_session_" + phone }])
+  }
+  keyboard.push([{ text: "\u{1F501} Reconnect (Force)", callback_data: "reconnect_session_" + phone }])
+  keyboard.push([{ text: "\u{1F4E1} WP Track", callback_data: "track_" + phone }])
+  keyboard.push([{ text: "\u{1F6AA} Logout", callback_data: "logout_" + phone }])
+  keyboard.push([{ text: "\u{1F519} Back to Sessions", callback_data: "back_to_sessions" }])
 
   await bot.sendMessage(chatId, msg, {
     parse_mode: "Markdown",
@@ -401,35 +407,59 @@ async function showActiveSessions(chatId) {
   })
 }
 
-async function showSessionMenu(chatId, phone) {
+async function doActivateBot(chatId, phone) {
+  const statusMsg = await bot.sendMessage(chatId, "\u{1F504} Activating bot for +" + phone + "...", { parse_mode: "Markdown" })
+  
   const session = wa.getSession(phone)
   if (!session) {
-    await bot.sendMessage(chatId, "Session not found.", {
-      reply_markup: { inline_keyboard: [[{ text: "Back", callback_data: "active_sessions" }]] }
+    try { await bot.deleteMessage(chatId, statusMsg.message_id) } catch (e) {}
+    await bot.sendMessage(chatId, "\u{26A0}\u{FE0F} *No session found* for +" + phone + ".\n\nThe session data does not exist or has been deleted.\nPlease connect a new number using *Pair Code* or *QR Code*.", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
     })
     return
   }
-
-  const statusEmoji = session.status === "connected" ? "\u{1F7E2}" : "\u{1F534}"
-  const statusText = session.status === "connected" ? "Connected" : "Disconnected"
-  const connectedTime = session.connectedAt ? new Date(session.connectedAt).toLocaleString() : "-"
-
-  let msg = "*Session: +" + phone + "*\n\n"
-  msg += "\u{1F4CD} Status: " + statusEmoji + " " + statusText + "\n"
-  msg += "\u{1F4C5} Connected: " + connectedTime + "\n"
-
-  await bot.sendMessage(chatId, msg, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "\u{1F504} Restart Connection", callback_data: "restart_session_" + phone }],
-        [{ text: "\u{1F501} Reconnect (Force)", callback_data: "reconnect_session_" + phone }],
-        [{ text: "\u{1F4E1} WP Track", callback_data: "track_" + phone }],
-        [{ text: "\u{1F6AA} Logout", callback_data: "logout_" + phone }],
-        [{ text: "\u{1F519} Back to Sessions", callback_data: "back_to_sessions" }],
-      ]
-    }
-  })
+  
+  // Check if session auth data exists on disk
+  const sessionDir = path.join(__dirname, "sessions", phone)
+  const hasAuthData = fs.existsSync(path.join(sessionDir, "creds.json"))
+  if (!hasAuthData) {
+    try { await bot.deleteMessage(chatId, statusMsg.message_id) } catch (e) {}
+    await bot.sendMessage(chatId, "\u{26A0}\u{FE0F} *Session expired* for +" + phone + ".\n\nSaved authentication data not found or was deleted.\nPlease reconnect using *Pair Code* or *QR Code*.", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: [[{ text: "\u{1F4F1} Pair Code", callback_data: "pair_code" }, { text: "\u{1F4F7} QR Code", callback_data: "qr_code" }]] }
+    })
+    return
+  }
+  
+  // Disconnect existing connection if any
+  if (wa.activeConnections[phone]) {
+    try { wa.activeConnections[phone].end(new Error("Activating bot")) } catch (e) {}
+    delete wa.activeConnections[phone]
+  }
+  
+  const method = session.method || "qr"
+  
+  // Update session status
+  wa.sessionsData[phone] = { ...session, status: "reconnecting" }
+  wa.saveSessionsData()
+  
+  // Connect using existing saved auth (no new QR/Pair needed if auth valid)
+  await wa.connectWithPhone(phone, method, bot, chatId)
+  
+  try { await bot.deleteMessage(chatId, statusMsg.message_id) } catch (e) {}
+  await sleep(2000)
+  
+  // Check activation result
+  const updatedSession = wa.getSession(phone)
+  if (updatedSession && updatedSession.status === "connected" && wa.activeConnections[phone]) {
+    await bot.sendMessage(chatId, "\u{2705} *Bot Activated Successfully*\n\nWhatsApp bot for +" + phone + " is now active and running.\nAll features are fully operational.", {
+      parse_mode: "Markdown",
+      reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
+    })
+  } else {
+    await showSessionMenu(chatId, phone)
+  }
 }
 
 async function doRestartSession(chatId, phone) {
