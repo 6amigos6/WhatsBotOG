@@ -2,6 +2,7 @@ const yts = require('yt-search');
 const ytdl = require('ytdl-core');
 const axios = require('axios');
 const { toAudio } = require('../lib/converter');
+const { ytmp3, ytmp4 } = require('ruhend-scraper');
 
 async function playCommand(sock, chatId, message) {
     try {
@@ -27,63 +28,86 @@ async function playCommand(sock, chatId, message) {
         const video = videos[0];
         const urlYt = video.url;
 
-        // Send thumbnail first
+        // Send thumbnail first with song info
         try {
             await sock.sendMessage(chatId, {
                 image: { url: video.thumbnail },
                 caption: `🎵 *${video.title}*\n👤 ${video.author.name}\n⏱ ${video.timestamp}`
-            }, { quoted: message });
+            });
         } catch (thumbErr) {
             console.log('Thumbnail failed:', thumbErr.message);
         }
 
-        // Download audio via ytdl-core
+        // Download audio with multi-source fallback
+        let audioBuffer = null;
+        let audioUrl = null;
+
+        // Source 1: ruhend-scraper ytmp3
         try {
-            const stream = ytdl(urlYt, { filter: 'audioonly', quality: 'lowestaudio' });
-            const audioBuffer = await new Promise((resolve, reject) => {
-                const chunks = [];
-                stream.on('data', chunk => chunks.push(chunk));
-                stream.on('end', () => resolve(Buffer.concat(chunks)));
-                stream.on('error', reject);
-            });
-            
-            if (audioBuffer && audioBuffer.length > 0) {
-                await sock.sendMessage(chatId, {
-                    audio: audioBuffer,
-                    mimetype: "audio/mpeg",
-                    fileName: `${video.title}.mp3`
-                }, { quoted: message });
-                return;
+            const result = await ytmp3(urlYt);
+            if (result && result.audio) {
+                const res = await axios.get(result.audio, { responseType: 'arraybuffer', timeout: 60000 });
+                audioBuffer = Buffer.from(res.data);
             }
-        } catch (ytdlError) {
-            console.log('ytdl-core failed:', ytdlError.message);
+            if (result && result.download) {
+                audioUrl = result.download;
+            }
+        } catch (e) { console.log('ruhend ytmp3 failed:', e.message); }
+
+        // Source 2: ytdl-core (fallback)
+        if (!audioBuffer && !audioUrl) {
+            try {
+                const stream = ytdl(urlYt, { filter: 'audioonly', quality: 'highestaudio' });
+                const chunks = [];
+                for await (const chunk of stream) chunks.push(chunk);
+                const buf = Buffer.concat(chunks);
+                audioBuffer = await toAudio(buf, 'mp4');
+            } catch (e) { console.log('ytdl-core failed:', e.message); }
         }
 
-        // Fallback APIs
-        const apis = [
-            `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(urlYt)}&format=mp3`,
-            `https://api.yupra.my.id/api/downloader/ytmp3?url=${encodeURIComponent(urlYt)}`,
-        ];
-
-        for (const apiUrl of apis) {
+        // Source 3: ruhend-scraper ytmp4 audio
+        if (!audioBuffer && !audioUrl) {
             try {
-                const response = await axios.get(apiUrl, { timeout: 15000,
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
-                const data = response.data;
-                let audioUrl = data?.downloadURL || data?.data?.download_url || data?.dl || null;
-
-                if (audioUrl) {
-                    await sock.sendMessage(chatId, {
-                        audio: { url: audioUrl },
-                        mimetype: "audio/mpeg",
-                        fileName: `${video.title}.mp3`
-                    }, { quoted: message });
-                    return;
+                const result = await ytmp4(urlYt);
+                if (result && result.audio) {
+                    const res = await axios.get(result.audio, { responseType: 'arraybuffer', timeout: 60000 });
+                    audioBuffer = Buffer.from(res.data);
                 }
-            } catch (apiErr) {
-                console.log(`API failed:`, apiErr.message);
+            } catch (e) { console.log('ruhend ytmp4 failed:', e.message); }
+        }
+
+        // Source 4: External API fallback
+        if (!audioBuffer && !audioUrl) {
+            const apis = [
+                "https://eliteprotech-apis.zone.id/ytdown?url=" + encodeURIComponent(urlYt) + "&format=mp3",
+                "https://api.yupra.my.id/api/downloader/ytmp3?url=" + encodeURIComponent(urlYt),
+            ];
+            for (const apiUrl of apis) {
+                try {
+                    const response = await axios.get(apiUrl, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+                    const data = response.data;
+                    audioUrl = data?.downloadURL || data?.data?.download_url || data?.dl || data?.result?.mp3 || null;
+                    if (audioUrl) break;
+                } catch (apiErr) { console.log('API failed:', apiErr.message); }
             }
+        }
+
+        // Send the audio
+        if (audioBuffer) {
+            await sock.sendMessage(chatId, {
+                audio: audioBuffer,
+                mimetype: 'audio/mpeg',
+                fileName: video.title.replace(/[^\w\s-]/g, '') + '.mp3'
+            });
+            return;
+        }
+        if (audioUrl) {
+            await sock.sendMessage(chatId, {
+                audio: { url: audioUrl },
+                mimetype: 'audio/mpeg',
+                fileName: video.title.replace(/[^\w\s-]/g, '') + '.mp3'
+            });
+            return;
         }
 
         throw new Error('All download methods failed');

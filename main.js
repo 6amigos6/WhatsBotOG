@@ -71,7 +71,6 @@ const aiCommand = require('./commands/ai');
 const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
-const videoCommand = require('./commands/video');
 const sudoCommand = require('./commands/sudo');
 const { miscCommand, handleHeart } = require('./commands/misc');
 const { piesCommand, piesAlias } = require('./commands/pies');
@@ -131,19 +130,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
             const buttonId = message.message.buttonsResponseMessage.selectedButtonId;
             const chatId = message.key.remoteJid;
 
-            if (buttonId === 'yt_video' || buttonId === 'yt_audio') {
+            if (buttonId === 'yt_audio') {
                 const target = global._ytDownloadTarget;
                 if (target && target.chatId === chatId && target.url) {
-                    if (buttonId === 'yt_video') {
-                        const videoCommand = require('./commands/video');
-                        message.message.extendedTextMessage = { text: `.video ${target.url}` };
-                        await videoCommand(sock, chatId, message);
-                    } else {
-                        // removed
-                        message.message.extendedTextMessage = { text: `.play ${target.url}` };
-                        const playCmd = require("./commands/play");
-                        await playCmd(sock, chatId, message);
-                    }
+                    message.message.extendedTextMessage = { text: `.play ${target.url}` };
+                    const playCmd = require("./commands/play");
+                    await playCmd(sock, chatId, message);
                     delete global._ytDownloadTarget;
                 }
                 return;
@@ -257,16 +249,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
             if (ytPattern.test(rawMsg)) {
                 if (!isReplyEnabled()) {
-                    const buttons = [
-                        { buttonId: 'yt_video', buttonText: { displayText: 'Video (1)' }, type: 1 },
-                        { buttonId: 'yt_audio', buttonText: { displayText: 'Musiqi (2)' }, type: 1 },
-                    ];
-                    const btnMsg = await sock.sendMessage(chatId, {
-                        text: 'YouTube link detected!\n\nChoose download type:',
-                        buttons: buttons,
-                        headerType: 1,
-                    });
-                    global._ytDownloadTarget = { chatId, url: rawMsg.match(ytPattern)[0], message: btnMsg };
+                    message.message.extendedTextMessage = { text: ".play " + rawMsg.match(ytPattern)[0] };
+                    const playCmd = require("./commands/play");
+                    await playCmd(sock, chatId, message);
                 }
                 return;
             }
@@ -279,7 +264,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             }
             return;
         }
-        // In private mode, only owner/sudo can run commands
         if (!isPublic && !isOwnerOrSudoCheck) {
             return;
         }

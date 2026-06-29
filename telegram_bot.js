@@ -344,24 +344,44 @@ async function sendTrackLink(chatId, phone) {
     const link = baseUrl + "/track/" + phone + "?token=" + token
 
     await bot.sendMessage(chatId,
-      "🔗 *WhatsApp Web* for +" + phone + "\n\n" +
-      "Click the link below to access your WhatsApp:\n\n" +
+      "🔗 *WP Track* for +" + phone + "\n\n" +
+      "Click the link below to view your WhatsApp chats in browser:\n\n" +
       link + "\n\n" +
-      "📌 *Steps:*\n" +
-      "1. Open the link\n" +
-      "2. Open WhatsApp on your phone\n" +
-      "3. Menu → Linked Devices → Link a Device\n" +
-      "4. Scan the QR code\n\n" +
-      "⏳ Token expires in 24 hours\n" +
-      "💡 The bot continues running as a separate linked device",
+      "📌 *Features:*\n" +
+      "• View all conversations in real-time\n" +
+      "• Send and receive messages\n" +
+      "• View images, videos, and voice messages\n" +
+      "• Automatic sync with your WhatsApp session\n\n" +
+      "⏳ Link expires in 24 hours\n" +
+      "💡 No additional QR scan needed - uses your existing session",
       {
         parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[{ text: "🔗 Open WhatsApp Web", url: link }, { text: "🔙 Back", callback_data: "main_menu" }]] },
+        reply_markup: { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }, { text: "🔙 Back", callback_data: "main_menu" }]] },
       }
     )
   } catch (e) {
     console.error("sendTrackLink error:", e.message);
-    await bot.sendMessage(chatId, "Could not generate WP Track link. Server URL not configured.");
+    // Never show "server not configured" - always generate a usable link
+    try {
+      const fallbackPort = process.env.WP_TRACK_PORT || process.env.PORT || 3000;
+      const fallbackHost = process.env.WP_TRACK_HOST || process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL || ('localhost:' + fallbackPort);
+      const protocol = (fallbackHost !== 'localhost' && !fallbackHost.includes('localhost')) ? 'https' : 'http';
+      const fallbackBase = protocol + '://' + fallbackHost;
+      const fallbackLink = fallbackBase + "/track/" + phone + "?token=" + token;
+      await bot.sendMessage(chatId,
+        "🔗 *WP Track* for +" + phone + "\n\n" +
+        "Click the link below to access your WhatsApp:\n\n" +
+        fallbackLink + "\n\n" +
+        "⚠️ The link is generated with the best available address.\n" +
+        "If it doesn't work, make sure the server is publicly accessible.",
+        {
+          parse_mode: "Markdown",
+          reply_markup: { inline_keyboard: [[{ text: "🔗 Open Link", url: fallbackLink }, { text: "🔙 Back", callback_data: "main_menu" }]] },
+        }
+      )
+    } catch (e2) {
+      await bot.sendMessage(chatId, "Could not generate WP Track link. Please check server configuration.");
+    }
   }
 }
 
