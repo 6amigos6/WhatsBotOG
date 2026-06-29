@@ -1,15 +1,7 @@
 const yts = require('yt-search');
-const axios = require('axios');
 const ytdl = require('ytdl-core');
+const axios = require('axios');
 const { toAudio } = require('../lib/converter');
-
-const AXIOS_DEFAULTS = {
-    timeout: 30000,
-    headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json, text/plain, */*'
-    }
-};
 
 async function playCommand(sock, chatId, message) {
     try {
@@ -22,26 +14,31 @@ async function playCommand(sock, chatId, message) {
             });
         }
 
-        // Search for the song
+        // Send loading reaction
+        await sock.sendMessage(chatId, { react: { text: '🔄', key: message.key } });
+
+        // Search YouTube
         const search = await yts(searchQuery);
         const videos = search.videos;
         if (!videos || videos.length === 0) {
-            return await sock.sendMessage(chatId, { 
-                text: "No songs found!"
-            });
+            return await sock.sendMessage(chatId, { text: "No songs found!" });
         }
 
-        // Send loading reaction
-        await sock.sendMessage(chatId, {
-            react: { text: '🔄', key: message.key }
-        });
-
-        // Get the first video result
         const video = videos[0];
         const urlYt = video.url;
 
+        // Send thumbnail first
         try {
-            // Try ytdl-core first (most reliable)
+            await sock.sendMessage(chatId, {
+                image: { url: video.thumbnail },
+                caption: `🎵 *${video.title}*\n👤 ${video.author.name}\n⏱ ${video.timestamp}`
+            }, { quoted: message });
+        } catch (thumbErr) {
+            console.log('Thumbnail failed:', thumbErr.message);
+        }
+
+        // Download audio via ytdl-core
+        try {
             const stream = ytdl(urlYt, { filter: 'audioonly', quality: 'lowestaudio' });
             const audioBuffer = await new Promise((resolve, reject) => {
                 const chunks = [];
@@ -54,47 +51,38 @@ async function playCommand(sock, chatId, message) {
                 await sock.sendMessage(chatId, {
                     audio: audioBuffer,
                     mimetype: "audio/mpeg",
-                    fileName: `${video.title}.mp3`,
-                    caption: "DOWNLOADED BY ORUJOV"
+                    fileName: `${video.title}.mp3`
                 }, { quoted: message });
                 return;
             }
         } catch (ytdlError) {
-            console.log('ytdl-core failed, trying API fallback:', ytdlError.message);
+            console.log('ytdl-core failed:', ytdlError.message);
         }
 
-        // API fallback
+        // Fallback APIs
         const apis = [
             `https://eliteprotech-apis.zone.id/ytdown?url=${encodeURIComponent(urlYt)}&format=mp3`,
             `https://api.yupra.my.id/api/downloader/ytmp3?url=${encodeURIComponent(urlYt)}`,
-            `https://okatsu-rolezapiiz.vercel.app/downloader/ytmp3?url=${encodeURIComponent(urlYt)}`
         ];
 
         for (const apiUrl of apis) {
             try {
-                const response = await axios.get(apiUrl, { ...AXIOS_DEFAULTS, timeout: 15000 });
+                const response = await axios.get(apiUrl, { timeout: 15000,
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
                 const data = response.data;
-                let audioUrl = null;
-                let title = video.title;
-
-                if (data?.success && data?.downloadURL) {
-                    audioUrl = data.downloadURL; title = data.title || title;
-                } else if (data?.data?.download_url) {
-                    audioUrl = data.data.download_url; title = data.data.title || title;
-                } else if (data?.dl) {
-                    audioUrl = data.dl; title = data.title || title;
-                }
+                let audioUrl = data?.downloadURL || data?.data?.download_url || data?.dl || null;
 
                 if (audioUrl) {
                     await sock.sendMessage(chatId, {
                         audio: { url: audioUrl },
                         mimetype: "audio/mpeg",
-                        fileName: `${title}.mp3`
+                        fileName: `${video.title}.mp3`
                     }, { quoted: message });
                     return;
                 }
             } catch (apiErr) {
-                console.log(`API ${apiUrl.split('/')[2]} failed:`, apiErr.message);
+                console.log(`API failed:`, apiErr.message);
             }
         }
 

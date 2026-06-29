@@ -82,7 +82,7 @@ function startBot(token) {
         userStates[chatId].msgId = qrMsg.message_id
         break
       case "restart":
-        await confirmRestart(chatId)
+        await showRestartSessions(chatId)
         break
       case "logout":
         await showLogoutMenu(chatId)
@@ -96,10 +96,7 @@ function startBot(token) {
       case "wp_track":
         await showWPTrack(chatId)
         break
-      case "active_sessions":
-        await showActiveSessions(chatId)
-        break
-      default:
+            default:
         if (data.startsWith("cancel_logout_")) {
           await showMainMenu(chatId)
         } else if (data.startsWith("logout_")) {
@@ -341,41 +338,6 @@ async function sendTrackLink(chatId, phone) {
     console.error("sendTrackLink error:", e.message);
     await bot.sendMessage(chatId, "Could not generate WP Track link. Server URL not configured.");
   }
-}
-
-async function showActiveSessions(chatId) {
-  const sessions = wa.getAllSessions()
-  
-  if (sessions.length === 0) {
-    await bot.sendMessage(chatId,
-      "\u{1F4CB} *Active Sessions*\n\nNo WhatsApp sessions found.\nConnect a number using Pair Code or QR Code.",
-      {
-        parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }]] }
-      }
-    )
-    return
-  }
-
-  let msg = "\u{1F4CB} *Active Sessions*\n\n"
-  sessions.forEach((s, i) => {
-    const statusEmoji = s.status === "connected" ? "\u{1F7E2}" : s.status === "reconnecting" ? "\u{1F7E1}" : "\u{1F534}"
-    const statusText = s.status === "connected" ? "Connected" : s.status === "reconnecting" ? "Reconnecting" : "Disconnected"
-    const connectedTime = s.connectedAt ? new Date(s.connectedAt).toLocaleString() : "-"
-    msg += statusEmoji + " *+" + s.phone + "*"
-    msg += "\n   Status: " + statusText
-    msg += "\n   Connected: " + connectedTime + "\n\n"
-  })
-
-  const keyboard = sessions.map(s => [
-    { text: "\u{1F539} +" + s.phone, callback_data: "session_" + s.phone }
-  ])
-  keyboard.push([{ text: "\u{1F519} Back to Menu", callback_data: "main_menu" }])
-
-  await bot.sendMessage(chatId, msg, {
-    parse_mode: "Markdown",
-    reply_markup: { inline_keyboard: keyboard }
-  })
 }
 
 async function showSessionMenu(chatId, phone) {

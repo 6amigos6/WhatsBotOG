@@ -39,19 +39,19 @@ const isOwnerOrSudo = require('./lib/isOwner');
 const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./commands/autoread');
 
 // Command imports
-const helpCommand = require('./commands/help');
+// help removed - using inline require
 const ttsCommand = require('./commands/tts');
 const instagramCommand = require('./commands/instagram');
 const facebookCommand = require('./commands/facebook');
 const spotifyCommand = require('./commands/spotify');
 const playCommand = require('./commands/play');
 const tiktokCommand = require('./commands/tiktok');
-const songCommand = require('./commands/song');
-const ownerCommand = require('./commands/owner');
+// removed
+// removed
 const factCommand = require('./commands/fact');
-const weatherCommand = require('./commands/weather');
+// removed
 const pingCommand = require('./commands/ping');
-const aliveCommand = require('./commands/alive');
+// removed
 const groupInfoCommand = require('./commands/groupinfo');
 const staffCommand = require('./commands/staff');
 const viewOnceCommand = require('./commands/viewonce');
@@ -135,12 +135,13 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 if (target && target.chatId === chatId && target.url) {
                     if (buttonId === 'yt_video') {
                         const videoCommand = require('./commands/video');
-                        message.message.extendedTextMessage = { text: `.ytmp4 ${target.url}` };
+                        message.message.extendedTextMessage = { text: `.video ${target.url}` };
                         await videoCommand(sock, chatId, message);
                     } else {
-                        const songCommand = require('./commands/song');
-                        message.message.extendedTextMessage = { text: `.song ${target.url}` };
-                        await songCommand(sock, chatId, message);
+                        // removed
+                        message.message.extendedTextMessage = { text: `.play ${target.url}` };
+                        const playCmd = require("./commands/play");
+                        await playCmd(sock, chatId, message);
                     }
                     delete global._ytDownloadTarget;
                 }
@@ -151,9 +152,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await sock.sendMessage(chatId, {
                     text: '📢 *ORUJOV Bot*\n\nPremium WhatsApp Bot\nVersion 6.6'
                 }, { quoted: message });
-                return;
-            } else if (buttonId === 'owner') {
-                                await ownerCommand(sock, chatId);
                 return;
             } else if (buttonId === 'support') {
                 await sock.sendMessage(chatId, {
@@ -296,8 +294,8 @@ async function handleMessages(sock, messageUpdate, printLog) {
         let commandExecuted = false;
 
         switch (true) {
-            case userMessage === '.help' || userMessage === '.menu' || userMessage === '.bot' || userMessage === '.list':
-                await helpCommand(sock, chatId, message, global.channelLink);
+            case userMessage === '.menu' || userMessage === '.bot' || userMessage === '.list':
+                const helpCmd = require('./commands/help'); await helpCmd(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.tts'):
@@ -373,112 +371,9 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 commandExecuted = true;
                 break;
-            case userMessage === '.owner':
-                await ownerCommand(sock, chatId);
-                break;
             case userMessage === '.fact':
                 await factCommand(sock, chatId, message, message);
                 break;
-            case userMessage.startsWith('.weather'):
-                const city = userMessage.slice(9).trim();
-                if (city) {
-                    await weatherCommand(sock, chatId, message, city);
-                } else {
-                    await sock.sendMessage(chatId, { text: 'Please specify a city, e.g., .weather London', ...channelInfo }, { quoted: message });
-                }
-                break;
-            case userMessage === '.topmembers':
-                topMembers(sock, chatId, isGroup);
-                break;
-            case userMessage.startsWith('.simp'):
-                const quotedMsg = message.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-                // simp command removed
-                break;
-            case userMessage === '.ping':
-                await pingCommand(sock, chatId, message);
-                break;
-            case userMessage === '.alive':
-                await aliveCommand(sock, chatId, message);
-                break;
-            case userMessage === '.groupinfo' || userMessage === '.infogp' || userMessage === '.infogrupo':
-                if (!isGroup) {
-                    await sock.sendMessage(chatId, { text: 'This command can only be used in groups!', ...channelInfo }, { quoted: message });
-                    return;
-                }
-                await groupInfoCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.tourl') || userMessage.startsWith('.url'):
-                await urlCommand(sock, chatId, message);
-                break;
-
-            case userMessage === '.vv':
-                await viewOnceCommand(sock, chatId, message);
-                break;
-            case userMessage === '.clearsession' || userMessage === '.clearsesi':
-                await clearSessionCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.autostatus'):
-                const autoStatusArgs = userMessage.split(' ').slice(1);
-                await autoStatusCommand(sock, chatId, message, autoStatusArgs);
-                break;
-            case userMessage.startsWith('.simp'):
-                // simp command removed
-                break;
-            case userMessage.startsWith('.antidelete'):
-                const antideleteMatch = userMessage.slice(11).trim();
-                await handleAntideleteCommand(sock, chatId, message, antideleteMatch);
-                break;
-            case userMessage === '.cleartmp':
-                await clearTmpCommand(sock, chatId, message);
-                break;
-            case userMessage === '.setpp':
-                await setProfilePicture(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.instagram') || userMessage.startsWith('.insta') || (userMessage === '.ig' || userMessage.startsWith('.ig ')):
-                await instagramCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.fb') || userMessage.startsWith('.facebook'):
-                await facebookCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.music'):
-                await playCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.spotify'):
-                await spotifyCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.play') || userMessage.startsWith('.mp3') || userMessage.startsWith('.ytmp3') || userMessage.startsWith('.song'):
-                await songCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.video') || userMessage.startsWith('.ytmp4'):
-                await videoCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.tiktok') || userMessage.startsWith('.tt'):
-                await tiktokCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.gpt') || userMessage.startsWith('.gemini'):
-                await aiCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.translate') || userMessage.startsWith('.trt'):
-                const commandLength = userMessage.startsWith('.translate') ? 10 : 4;
-                await handleTranslateCommand(sock, chatId, message, userMessage.slice(commandLength));
-                return;
-            case userMessage.startsWith('.ss') || userMessage.startsWith('.ssweb') || userMessage.startsWith('.screenshot'):
-                const ssCommandLength = userMessage.startsWith('.screenshot') ? 11 : (userMessage.startsWith('.ssweb') ? 6 : 3);
-                await handleSsCommand(sock, chatId, message, userMessage.slice(ssCommandLength).trim());
-                break;
-            case userMessage.startsWith('.areact') || userMessage.startsWith('.autoreact') || userMessage.startsWith('.autoreaction'):
-                await handleAreactCommand(sock, chatId, message, isOwnerOrSudoCheck);
-                break;
-            case userMessage.startsWith('.sudo'):
-                await sudoCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.imagine') || userMessage.startsWith('.flux') || userMessage.startsWith('.dalle'): await imagineCommand(sock, chatId, message);
-                break;
-            case userMessage === '.jid': await groupJidCommand(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.autoread'):
-                await autoreadCommand(sock, chatId, message);
-                commandExecuted = true;
                 break;
             case userMessage.startsWith('.heart'):
                 await handleHeart(sock, chatId, message);
@@ -497,72 +392,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     await miscCommand(sock, chatId, message, args);
                 }
                 break;
-            case userMessage.startsWith('.lgbt'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['lgbt', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.lolice'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['lolice', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.tonikawa'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['tonikawa', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.its-so-stupid'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['its-so-stupid', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.namecard'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['namecard', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-
-            case userMessage.startsWith('.oogway2'):
-            case userMessage.startsWith('.oogway'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const sub = userMessage.startsWith('.oogway2') ? 'oogway2' : 'oogway';
-                    const args = [sub, ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.tweet'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['tweet', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.ytcomment'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['youtube-comment', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            // animu aliases
-            case userMessage.startsWith('.pies'):
-                {
-                    const parts = rawText.trim().split(/\s+/);
-                    const args = parts.slice(1);
-                    await piesCommand(sock, chatId, message, args);
-                    commandExecuted = true;
                 }
                 break;
             case userMessage === '.china':
