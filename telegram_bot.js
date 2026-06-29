@@ -178,6 +178,9 @@ async function showMainMenu(chatId) {
               { text: "\u{1F4F7} QR Code", callback_data: "qr_code" },
             ],
             [
+              { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
+            ],
+            [
               { text: "\u{1F504} Restart Sessions", callback_data: "restart" },
               { text: "\u{1F6AA} Logout Session", callback_data: "logout" },
             ],
@@ -199,6 +202,9 @@ async function showMainMenu(chatId) {
           [
             { text: "\u{1F4F1} Pair Code", callback_data: "pair_code" },
             { text: "\u{1F4F7} QR Code", callback_data: "qr_code" },
+          ],
+          [
+            { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
           ],
           [
             { text: "\u{1F504} Restart Sessions", callback_data: "restart" },

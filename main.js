@@ -374,7 +374,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             case userMessage === '.fact':
                 await factCommand(sock, chatId, message, message);
                 break;
-                break;
             case userMessage.startsWith('.heart'):
                 await handleHeart(sock, chatId, message);
                 break;
@@ -390,8 +389,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     const parts = userMessage.trim().split(/\s+/);
                     const args = ['circle', ...parts.slice(1)];
                     await miscCommand(sock, chatId, message, args);
-                }
-                break;
                 }
                 break;
             case userMessage === '.china':

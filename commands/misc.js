@@ -167,9 +167,6 @@ async function miscCommand(sock, chatId, message, args) {
                 break;
             }
             // Overlay endpoints
-            case 'comrade':
-            }
-
             default:
                 await sock.sendMessage(chatId, { text: 'Usage: .misc <heart|horny|circle|lesbian|nonbinary|pansexual|transgender|lied|lolice|simpcard|tonikawa|its-so-stupid <text>|namecard u|b|d?|nobitches <text>|oogway <q>|oogway2 <q>|tweet dn|un|c|theme?|youtube-comment un|c>' }, { quoted: message });
                 break;
