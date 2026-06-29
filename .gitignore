@@ -29,3 +29,9 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Runtime data (regenerated)
+media_cache/
+data/messageCount.json
+data/autoread.json
+data/autoStatus.json
