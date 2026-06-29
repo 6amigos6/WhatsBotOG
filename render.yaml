@@ -1,0 +1,13 @@
+services:
+  - type: worker
+    name: orujov-bot
+    env: node
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: TELEGRAM_TOKEN
+        sync: false
+      - key: OWNER_NUMBER
+        value: "994501234567"
+    autoDeploy: false
+    plan: free
