@@ -469,8 +469,98 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     await anticallCommand(sock, chatId, message, args);
                 }
                 commandExecuted = true;
-                break;            case userMessage.startsWith('.sora'):
+                break;
+            case userMessage.startsWith('.sora'):
                 await soraCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            // ===== AI COMMANDS =====
+            case userMessage.startsWith('.gpt'):
+            case userMessage.startsWith('.gemini'):
+            case userMessage.startsWith('.flux'):
+                await aiCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            // ===== OWNER COMMANDS =====
+            case userMessage.startsWith('.autostatus'):
+                {
+                    const args = userMessage.split(' ').slice(1).join(' ');
+                    await autoStatusCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.antidelete'):
+                {
+                    const args = userMessage.split(' ').slice(1).join(' ');
+                    await handleAntideleteCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.clearsession'):
+                await clearSessionCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.cleartmp'):
+                await clearTmpCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.setpp'):
+                await setProfilePicture(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.autoread'):
+                {
+                    const args = userMessage.split(' ').slice(1).join(' ');
+                    await autoreadCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.areact'):
+                {
+                    const args = userMessage.split(' ').slice(1).join(' ');
+                    await handleAreactCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            // ===== MISC EFFECTS =====
+            case userMessage.startsWith('.tweet'):
+                {
+                    const parts = userMessage.trim().split(/\s+/);
+                    const args = ['tweet', ...parts.slice(1)];
+                    await miscCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.namecard'):
+                {
+                    const parts = userMessage.trim().split(/\s+/);
+                    const args = ['namecard', ...parts.slice(1)];
+                    await miscCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.oogway'):
+                {
+                    const parts = userMessage.trim().split(/\s+/);
+                    const args = ['oogway', ...parts.slice(1)];
+                    await miscCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.ytcomment'):
+                {
+                    const parts = userMessage.trim().split(/\s+/);
+                    const args = ['youtube-comment', ...parts.slice(1)];
+                    await miscCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.glass'):
+            case userMessage.startsWith('.triggered'):
+            case userMessage.startsWith('.passed'):
+            case userMessage.startsWith('.jail'):
+                await sock.sendMessage(chatId, { text: '❌ This effect is temporarily unavailable.\nTry: .heart, .circle, .horny, .tweet, .namecard, .oogway', ...channelInfo }, { quoted: message });
+                commandExecuted = true;
                 break;
             default:
                 if (isGroup) {
