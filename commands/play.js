@@ -1,46 +1,99 @@
 const yts = require('yt-search');
-const ytdl = require('@distube/ytdl-core');
+const ytdlExec = require('youtube-dl-exec');
 const axios = require('axios');
-const { toAudio } = require('../lib/converter');
-const { ytmp3 } = require('ruhend-scraper');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { toAudio } = require('../lib/converter');
 
 const TEMP_DIR = path.join(__dirname, '../temp');
 fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-// Clean temp files older than 10 minutes
+// Live temp cleaner: remove anything older than 5 minutes, run every 2 min
 setInterval(() => {
   try {
     const files = fs.readdirSync(TEMP_DIR);
     const now = Date.now();
+    let cleaned = 0;
     for (const f of files) {
       try {
         const fp = path.join(TEMP_DIR, f);
-        if (now - fs.statSync(fp).mtimeMs > 600000) fs.unlinkSync(fp);
+        const stat = fs.statSync(fp);
+        if (stat.isFile() && now - stat.mtimeMs > 300000) {
+          fs.unlinkSync(fp);
+          cleaned++;
+        }
       } catch {}
     }
+    if (cleaned > 0) console.log(`🧹 Temp cleaner: removed ${cleaned} stale files`);
   } catch {}
-}, 300000);
+}, 120000);
 
-// Download audio buffer from a URL with proper browser-like headers
-async function downloadFromUrl(url) {
+// Also clean on startup
+try {
+  const files = fs.readdirSync(TEMP_DIR);
+  for (const f of files) {
+    try { fs.unlinkSync(path.join(TEMP_DIR, f)); } catch {}
+  }
+  if (files.length > 0) console.log(`🧹 Startup: cleaned ${files.length} temp files`);
+} catch {}
+
+async function downloadWithYtdlp(url, outputPath) {
+  await ytdlExec(url, {
+    extractAudio: true,
+    audioFormat: 'mp3',
+    audioQuality: 0,
+    output: outputPath,
+    noCheckCertificates: true,
+    preferFreeFormats: true,
+    noWarnings: true,
+    addHeader: ['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'],
+    geoBypass: true,
+  });
+}
+
+async function downloadWithAxios(url) {
   const res = await axios.get(url, {
     responseType: 'arraybuffer',
     timeout: 120000,
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Referer': 'https://www.youtube.com/',
-      'Origin': 'https://www.youtube.com',
-      'Accept': '*/*',
     },
     maxRedirects: 5,
   });
   return Buffer.from(res.data);
 }
 
+async function getAudioUrlFromYtdlp(videoUrl) {
+  try {
+    const info = await ytdlExec(videoUrl, {
+      dumpSingleJson: true,
+      noCheckCertificates: true,
+      preferFreeFormats: true,
+      noWarnings: true,
+      addHeader: ['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'],
+      geoBypass: true,
+    });
+    
+    if (!info?.formats) return null;
+    
+    const audioFormats = info.formats.filter(f => 
+      f.acodec && f.acodec !== 'none' && f.vcodec === 'none' && f.url && !f.cipher
+    ).sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0));
+    
+    if (audioFormats.length > 0) return audioFormats[0].url;
+    
+    // Fallback: any format with audio
+    const anyAudio = info.formats.find(f => f.acodec && f.acodec !== 'none' && f.url && !f.cipher);
+    return anyAudio?.url || null;
+  } catch {
+    return null;
+  }
+}
+
 async function playCommand(sock, chatId, message) {
+  let tempFilePath = null;
+  
   try {
     const text = message.message?.conversation || message.message?.extendedTextMessage?.text || '';
     const searchQuery = text.replace(/^\.play\s+/i, '').trim();
@@ -62,13 +115,13 @@ async function playCommand(sock, chatId, message) {
 
     const video = videos[0];
     const urlYt = video.url;
-    const title = video.title || 'Unknown';
+    const title = (video.title || 'Unknown').substring(0, 100);
     const author = video.author?.name || 'Unknown';
     const duration = video.timestamp || '00:00';
 
     await sock.sendMessage(chatId, { react: { text: '⬇️', key: message.key } });
 
-    // Send thumbnail with song info
+    // Send HD thumbnail with song info
     try {
       await sock.sendMessage(chatId, {
         image: { url: video.thumbnail },
@@ -78,136 +131,116 @@ async function playCommand(sock, chatId, message) {
       console.log('Thumbnail failed:', thumbErr.message);
     }
 
-    // Download audio with multi-source fallback
-    let audioBuffer = null;
-    let audioUrl = null;
+    await sock.sendMessage(chatId, { react: { text: '📥', key: message.key } });
 
-    // Source 1: @distube/ytdl-core (maintained fork)
-    if (!audioBuffer && !audioUrl) {
+    // === DOWNLOAD AUDIO ===
+    let audioBuffer = null;
+    let downloadedVia = '';
+
+    // Method 1: yt-dlp native download (most reliable)
+    if (!audioBuffer) {
       try {
-        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+        const tmpName = `play_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.mp3`;
+        tempFilePath = path.join(TEMP_DIR, tmpName);
+        await downloadWithYtdlp(urlYt, tempFilePath);
+        if (fs.existsSync(tempFilePath) && fs.statSync(tempFilePath).size > 1000) {
+          audioBuffer = fs.readFileSync(tempFilePath);
+          downloadedVia = 'yt-dlp';
+          console.log(`✅ ${downloadedVia}: ${(audioBuffer.length/1024/1024).toFixed(2)}MB`);
+        }
+      } catch (e) { console.log('yt-dlp download failed:', e.message?.slice(0, 60)); }
+    }
+
+    // Method 2: Get audio URL via yt-dlp JSON, download via axios
+    if (!audioBuffer) {
+      try {
+        const audioUrl = await getAudioUrlFromYtdlp(urlYt);
+        if (audioUrl) {
+          audioBuffer = await downloadWithAxios(audioUrl);
+          if (audioBuffer.length > 1000) {
+            downloadedVia = 'yt-dlp+axios';
+            console.log(`✅ ${downloadedVia}: ${(audioBuffer.length/1024/1024).toFixed(2)}MB`);
+          } else { audioBuffer = null; }
+        }
+      } catch (e) { console.log('yt-dlp+axios failed:', e.message?.slice(0, 60)); }
+    }
+
+    // Method 3: ruhend-scraper fallback
+    if (!audioBuffer) {
+      try {
+        const { ytmp3 } = require('ruhend-scraper');
+        const result = await ytmp3(urlYt);
+        const audioUrl = (result?.audio || result?.audio_2 || result?.mp3 || '');
+        if (audioUrl) {
+          try { audioBuffer = await downloadWithAxios(audioUrl); } catch {}
+          if (!audioBuffer && result?.download) {
+            const res = await axios.get(result.download, { responseType: 'arraybuffer', timeout: 30000 });
+            audioBuffer = Buffer.from(res.data);
+          }
+          if (audioBuffer?.length > 1000) {
+            downloadedVia = 'ruhend';
+            console.log(`✅ ${downloadedVia}: ${(audioBuffer.length/1024/1024).toFixed(2)}MB`);
+          } else { audioBuffer = null; }
+        }
+      } catch (e) { console.log('ruhend failed:', e.message?.slice(0, 60)); }
+    }
+
+    // Method 4: @distube/ytdl-core as last resort
+    if (!audioBuffer) {
+      try {
+        const ytdl = require('@distube/ytdl-core');
         const stream = ytdl(urlYt, {
           filter: 'audioonly',
           quality: 'highestaudio',
           requestOptions: {
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Accept-Language': 'en-US,en;q=0.9',
             }
           }
         });
         const chunks = [];
         for await (const chunk of stream) chunks.push(chunk);
-        const rawBuffer = Buffer.concat(chunks);
-        if (rawBuffer.length > 0) {
-          audioBuffer = await toAudio(rawBuffer, 'mp4');
-          console.log('✅ @distube/ytdl-core success');
-        }
-      } catch (e) { console.log('@distube/ytdl-core failed:', e.message.slice(0, 60)); }
-    }
-
-    // Source 2: ruhend-scraper ytmp3
-    if (!audioBuffer && !audioUrl) {
-      try {
-        const result = await ytmp3(urlYt);
-        if (result?.audio) {
-          try {
-            audioBuffer = await downloadFromUrl(result.audio);
-            console.log('✅ ruhend-scraper ytmp3 success');
-          } catch (e) {
-            // Try audio_2 if available
-            if (result.audio_2) {
-              try {
-                audioBuffer = await downloadFromUrl(result.audio_2);
-                console.log('✅ ruhend-scraper audio_2 success');
-              } catch (e2) {
-                // Try mp3 field if available
-                if (result.mp3) {
-                  audioBuffer = await downloadFromUrl(result.mp3);
-                  console.log('✅ ruhend-scraper mp3 success');
-                }
-              }
-            }
-          }
-        }
-        if (!audioBuffer && result?.download) audioUrl = result.download;
-      } catch (e) { console.log('ruhend-scraper failed:', e.message.slice(0, 60)); }
-    }
-
-    // Source 3: ruhend-scraper ytmp4 (audio fallback)
-    if (!audioBuffer && !audioUrl) {
-      try {
-        const { ytmp4 } = require('ruhend-scraper');
-        const result = await ytmp4(urlYt);
-        if (result?.audio) {
-          try {
-            audioBuffer = await downloadFromUrl(result.audio);
-            console.log('✅ ruhend-scraper ytmp4 success');
-          } catch {}
-        }
-      } catch (e) { console.log('ruhend ytmp4 failed:', e.message.slice(0, 60)); }
-    }
-
-    // Source 4: ytdl-core (original, final fallback)
-    if (!audioBuffer && !audioUrl) {
-      try {
-        const ytdlOld = require('ytdl-core');
-        const stream = ytdlOld(urlYt, { filter: 'audioonly', quality: 'highestaudio' });
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
         if (chunks.length > 0) {
-          const rawBuffer = Buffer.concat(chunks);
-          audioBuffer = await toAudio(rawBuffer, 'mp4');
-          console.log('✅ ytdl-core original success');
+          const rawBuf = Buffer.concat(chunks);
+          audioBuffer = await toAudio(rawBuf, 'mp4');
+          downloadedVia = 'ytdl-core';
+          console.log(`✅ ${downloadedVia}: ${(audioBuffer?.length/1024/1024).toFixed(2)||0}MB`);
         }
-      } catch (e) { console.log('ytdl-core original failed:', e.message.slice(0, 60)); }
+      } catch (e) { console.log('ytdl-core failed:', e.message?.slice(0, 60)); }
     }
 
-    // Source 5: External APIs (last resort)
-    if (!audioBuffer && !audioUrl) {
-      const apis = [
-        'https://eliteprotech-apis.zone.id/ytdown?url=' + encodeURIComponent(urlYt) + '&format=mp3',
-        'https://api.yupra.my.id/api/downloader/ytmp3?url=' + encodeURIComponent(urlYt),
-      ];
-      for (const apiUrl of apis) {
-        try {
-          const res = await axios.get(apiUrl, { timeout: 20000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-          const data = res.data;
-          audioUrl = data?.downloadURL || data?.data?.download_url || data?.dl || data?.result?.mp3 || null;
-          if (audioUrl) { console.log('✅ External API success'); break; }
-        } catch (e) { console.log('API failed:', e.message.slice(0, 60)); }
-      }
+    // Final cleanup: delete temp file if exists
+    if (tempFilePath) {
+      try { fs.unlinkSync(tempFilePath); tempFilePath = null; } catch {}
     }
 
-    // Send the audio
-    if (audioBuffer) {
+    if (!audioBuffer) {
       await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
-      const fileName = title.replace(/[^\w\s-]/g, '').substring(0, 80) + '.mp3';
-      await sock.sendMessage(chatId, {
-        audio: audioBuffer,
-        mimetype: 'audio/mpeg',
-        fileName: fileName,
-        caption: 'Downloaded By Orujov'
-      }, { quoted: message });
-      return;
+      return await sock.sendMessage(chatId, { text: '❌ YouTube blocked the request. Try another song or try again later.' }, { quoted: message });
     }
 
-    if (audioUrl) {
-      await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
-      await sock.sendMessage(chatId, {
-        audio: { url: audioUrl },
-        mimetype: 'audio/mpeg',
-        fileName: title.replace(/[^\w\s-]/g, '').substring(0, 80) + '.mp3',
-        caption: 'Downloaded By Orujov'
-      }, { quoted: message });
-      return;
-    }
+    await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
 
-    throw new Error('All download methods failed');
+    // Send audio with caption
+    const fileName = title.replace(/[^\w\s-]/g, '').substring(0, 80) + '.mp3';
+    await sock.sendMessage(chatId, {
+      audio: audioBuffer,
+      mimetype: 'audio/mpeg',
+      fileName: fileName,
+      caption: 'Downloaded By Orujov'
+    }, { quoted: message });
+
+    // Clear audio buffer from memory
+    audioBuffer = null;
+
   } catch (error) {
     console.error('[play] error:', error.message);
+    if (tempFilePath) { try { fs.unlinkSync(tempFilePath); } catch {} }
     try {
-      await sock.sendMessage(chatId, { text: '❌ Download failed. Try another song.' }, { quoted: message });
+      await sock.sendMessage(chatId, {
+        text: '❌ Download failed. YouTube may be rate-limiting. Try again in a few minutes.'
+      }, { quoted: message });
     } catch {}
   }
 }

@@ -94,6 +94,44 @@ setInterval(() => {
   }
 }, 30000)
 
+// Global temp & cache cleaner: clean temp/ dir every 5 min, media_cache/ every 15 min
+const MEDIA_CACHE_DIR = path.join(__dirname, "media_cache");
+setInterval(() => {
+  // Clean temp/ - remove all files (temp files are transient)
+  try {
+    const files = fs.readdirSync(TEMP_DIR);
+    let n = 0;
+    for (const f of files) {
+      try { const fp = path.join(TEMP_DIR, f); if (fs.statSync(fp).isFile()) { fs.unlinkSync(fp); n++; } } catch {}
+    }
+    if (n > 0) console.log(`🧹 Temp cleaned: ${n} files`);
+  } catch {}
+}, 300000);
+
+setInterval(() => {
+  // Clean media_cache/ - only files older than 30 minutes
+  try {
+    const phones = fs.readdirSync(MEDIA_CACHE_DIR);
+    const cutoff = Date.now() - 1800000; // 30 min
+    let n = 0;
+    for (const phone of phones) {
+      const dir = path.join(MEDIA_CACHE_DIR, phone);
+      try {
+        const files = fs.readdirSync(dir);
+        for (const f of files) {
+          try {
+            const fp = path.join(dir, f);
+            if (fs.statSync(fp).isFile() && fs.statSync(fp).mtimeMs < cutoff) { fs.unlinkSync(fp); n++; }
+          } catch {}
+        }
+        // Remove empty directories
+        if (fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
+      } catch {}
+    }
+    if (n > 0) console.log(`🧹 Media cache cleaned: ${n} stale files`);
+  } catch {}
+}, 900000); // 15 min
+
 tgBot.startBot(TELEGRAM_TOKEN)
 
 // Auto-reconnect after a short delay to let Telegram bot start first
