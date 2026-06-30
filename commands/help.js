@@ -22,16 +22,12 @@ async function helpCommand(sock, chatId, message) {
 「 🔒 OWNER 」
 ╭──────────────
 │ ⌬ .mode
-│ ⌬ .settings
-│ ⌬ .update
 │ ⌬ .setpp
 │ ⌬ .autoread
 │ ⌬ .autostatus
 │ ⌬ .anticall
 │ ⌬ .pmblocker
 │ ⌬ .antidelete
-│ ⌬ .clearsession
-│ ⌬ .cleartmp
 ╰──────────────
 
 「 🤖 AI 」

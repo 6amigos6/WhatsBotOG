@@ -54,9 +54,6 @@ const pingCommand = require('./commands/ping');
 const staffCommand = require('./commands/staff');
 const viewOnceCommand = require('./commands/viewonce');
 const { incrementMessageCount, topMembers } = require('./commands/topmembers');
-const settingsCommand = require('./commands/settings');
-const clearSessionCommand = require('./commands/clearsession');
-const clearTmpCommand = require('./commands/cleartmp');
 const setProfilePicture = require('./commands/setpp');
 const { anticallCommand, readState: readAnticallState } = require('./commands/anticall');
 const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/pmblocker');
@@ -70,7 +67,6 @@ const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
 const sudoCommand = require('./commands/sudo');
 const { piesCommand, piesAlias } = require('./commands/pies');
-const updateCommand = require('./commands/update');
 const soraCommand = require('./commands/sora');
 
 // Global settings
@@ -266,7 +262,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.setpp', '.areact', '.autoread', '.pmblocker'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         
@@ -297,9 +293,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 commandExecuted = true;
                 break;
 
-            case userMessage === '.settings':
-                await settingsCommand(sock, chatId, message);
-                break;
             case userMessage.startsWith('.mode'):
                 // Check if sender is the owner
                 if (!message.key.fromMe && !senderIsOwnerOrSudo) {
@@ -384,15 +377,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await piesAlias(sock, chatId, message, 'thailand');
                 commandExecuted = true;
                 break;
-            case userMessage.startsWith('.update'):
-                {
-                    const parts = rawText.trim().split(/\s+/);
-                    const zipArg = parts[1] && parts[1].startsWith('http') ? parts[1] : '';
-                    await updateCommand(sock, chatId, message, zipArg);
-                }
-                commandExecuted = true;
-                break;
-
             case userMessage === '.ping':
                 await pingCommand(sock, chatId, message);
                 commandExecuted = true;
@@ -471,14 +455,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     const args = userMessage.split(' ').slice(1).join(' ');
                     await handleAntideleteCommand(sock, chatId, message, args);
                 }
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.clearsession'):
-                await clearSessionCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.cleartmp'):
-                await clearTmpCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.setpp'):
