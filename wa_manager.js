@@ -443,10 +443,12 @@ async function connectWithPhone(phone, method, tgBot, chatId) {
             const buf = await QRCode.toBuffer(qr, { type: "png", margin: 2, scale: 8 })
             await tgBot.sendPhoto(chatId, buf, {
               caption:
-                "QR Code for +" + phone + "\n\n" +
-                "1. Open WhatsApp > Menu > Linked Devices\n" +
-                "2. Tap Link a Device\n" +
-                "3. Scan this QR code",
+                "\u{1F4F7} *QR Code* for +" + phone + "\n\n" +
+                "\u{1F449} *Steps:*\n" +
+                "1. Open WhatsApp \u2192 Menu \u2192 Linked Devices\n" +
+                "2. Tap *Link a Device*\n" +
+                "3. *Scan* this QR code with your phone"
+              ,
               parse_mode: "Markdown",
             })
           } catch (err) {
@@ -544,14 +546,11 @@ async function requestPairingCodeWithRetry(sock, phone, tgBot, chatId, maxRetrie
       console.log("Pairing code for", phone, ":", code)
 
       if (chatId) await tgBot.sendMessage(chatId,
-        "Pairing Code for +" + phone + "\n\n" +
-        code + "\n\n" +
-        "How to use:\n" +
-        "1. Open WhatsApp on your phone\n" +
-        "2. Settings > Linked Devices\n" +
-        "3. Tap Link a Device\n" +
-        "4. Enter this code\n\n" +
-        "Expires in 5 minutes",
+        "\u2705 *Pairing Code ready!*\n\n" +
+        "\u{1F511} Code:\n`" + code + "`\n\n" +
+        "\u{1F446} *Tap the code above to copy*\n\n" +
+        "\u{1F4F2} WhatsApp \u2192 Linked Devices \u2192 Link with phone number \u2192 Enter code\n\n" +
+        "\u23F1 Expires in 5 minutes",
         { parse_mode: "Markdown" }
       )
       return
