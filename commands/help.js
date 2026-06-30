@@ -50,21 +50,6 @@ async function helpCommand(sock, chatId, message) {
 │ 📺 YouTube → Send Link
 │ 📸 Instagram → Send Link
 │ 📱 TikTok → Send Link
-│ 📘 .facebook <link>
-╰──────────────
-
-「 🎨 EFFECTS 」
-╭──────────────
-│ ✨ .heart
-│ ✨ .glass
-│ ✨ .circle
-│ ✨ .triggered
-│ ✨ .passed
-│ ✨ .jail
-│ ✨ .tweet
-│ ✨ .ytcomment
-│ ✨ .namecard
-│ ✨ .oogway
 ╰──────────────
 
 ━━━━━━━━━━━━━━━━━━━━━━

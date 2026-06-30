@@ -42,7 +42,6 @@ const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./comman
 // help removed - using inline require
 const ttsCommand = require('./commands/tts');
 const instagramCommand = require('./commands/instagram');
-const facebookCommand = require('./commands/facebook');
 const spotifyCommand = require('./commands/spotify');
 const playCommand = require('./commands/play');
 const tiktokCommand = require('./commands/tiktok');
@@ -70,7 +69,6 @@ const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
 const sudoCommand = require('./commands/sudo');
-const { miscCommand, handleHeart } = require('./commands/misc');
 const { piesCommand, piesAlias } = require('./commands/pies');
 const updateCommand = require('./commands/update');
 const soraCommand = require('./commands/sora');
@@ -358,23 +356,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 commandExecuted = true;
                 break;
 
-            case userMessage.startsWith('.heart'):
-                await handleHeart(sock, chatId, message);
-                break;
-            case userMessage.startsWith('.horny'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['horny', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
-            case userMessage.startsWith('.circle'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['circle', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                break;
             case userMessage === '.china':
                 await piesAlias(sock, chatId, message, 'china');
                 commandExecuted = true;
@@ -451,10 +432,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await imagineCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
-            case userMessage.startsWith('.facebook'):
-                await facebookCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
             case userMessage.startsWith('.spotify'):
                 await spotifyCommand(sock, chatId, message);
                 commandExecuted = true;
@@ -520,46 +497,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     const args = userMessage.split(' ').slice(1).join(' ');
                     await handleAreactCommand(sock, chatId, message, args);
                 }
-                commandExecuted = true;
-                break;
-            // ===== MISC EFFECTS =====
-            case userMessage.startsWith('.tweet'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['tweet', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.namecard'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['namecard', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.oogway'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['oogway', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.ytcomment'):
-                {
-                    const parts = userMessage.trim().split(/\s+/);
-                    const args = ['youtube-comment', ...parts.slice(1)];
-                    await miscCommand(sock, chatId, message, args);
-                }
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.glass'):
-            case userMessage.startsWith('.triggered'):
-            case userMessage.startsWith('.passed'):
-            case userMessage.startsWith('.jail'):
-                await sock.sendMessage(chatId, { text: '❌ This effect is temporarily unavailable.\nTry: .heart, .circle, .horny, .tweet, .namecard, .oogway', ...channelInfo }, { quoted: message });
                 commandExecuted = true;
                 break;
             default:

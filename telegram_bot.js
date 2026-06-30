@@ -361,18 +361,20 @@ async function sendTrackLink(chatId, phone) {
   }
   link = baseUrl + '/track/' + phone + '?token=' + token
   
-  const msg = "🔗 *WP Track* for +" + phone + "\n\n" +
-    "Click the link below to view your WhatsApp chats in browser:\n\n" +
-    link + "\n\n" +
-    "📌 *Features:*\n" +
-    "• View all conversations in real-time\n" +
-    "• Send and receive messages\n" +
-    "• View images, videos, and voice messages\n" +
-    "• Automatic sync with your WhatsApp session\n\n" +
-    "⏳ Link expires in 24 hours\n" +
-    "💡 No additional QR scan needed - uses your existing session"
+  const msg = "╭────────────────────────────╮\n" +
+    "│   📍 *WP TRACK READY*        │\n" +
+    "├────────────────────────────┤\n" +
+    "│ 👤 *Number:*                 │\n" +
+    "│    +" + phone + "       │\n" +
+    "│                             │\n" +
+    "│ 🔗 *Tracking Link*           │\n" +
+    "│    " + link + "  │\n" +
+    "│                             │\n" +
+    "│ ℹ️ Tap the button below      │\n" +
+    "│    to open in your browser.  │\n" +
+    "╰────────────────────────────╯"
   
-  const keyboard = { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }, { text: "🔙 Back", callback_data: "main_menu" }]] }
+  const keyboard = { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }], [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
   
   try {
     await bot.sendMessage(chatId, msg, { parse_mode: "Markdown", reply_markup: keyboard })
