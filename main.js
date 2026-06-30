@@ -352,16 +352,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     await sock.sendMessage(chatId, { text: 'Failed to update bot access mode', ...channelInfo });
                 }
                 break;
-            case userMessage.startsWith('.anticall'):
-                if (!message.key.fromMe && !senderIsOwnerOrSudo) {
-                    await sock.sendMessage(chatId, { text: 'Only owner/sudo can use anticall.' }, { quoted: message });
-                    break;
-                }
-                {
-                    const args = userMessage.split(' ').slice(1).join(' ');
-                    await anticallCommand(sock, chatId, message, args);
-                }
-                break;
             case userMessage.startsWith('.pmblocker'):
                 {
                     const args = userMessage.split(' ').slice(1).join(' ');
@@ -425,7 +415,67 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 commandExecuted = true;
                 break;
-            case userMessage.startsWith('.sora'):
+
+            case userMessage === '.ping':
+                await pingCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.jid':
+                await groupInfoCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.groupinfo':
+                await groupInfoCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.staff':
+                await staffCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.vv' || userMessage === '.viewonce':
+                await viewOnceCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.translate'):
+                await handleTranslateCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.url'):
+                await urlCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.ss'):
+                await handleSsCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.gif'):
+                const gifCmd = require('./commands/gif');
+                await gifCmd(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.imagine'):
+                await imagineCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.facebook'):
+                await facebookCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.spotify'):
+                await spotifyCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.anticall' || userMessage.startsWith('.anticall '):
+                if (!message.key.fromMe && !senderIsOwnerOrSudo) {
+                    await sock.sendMessage(chatId, { text: 'Only owner/sudo can use anticall.' }, { quoted: message });
+                    break;
+                }
+                {
+                    const args = userMessage.split(' ').slice(1).join(' ');
+                    await anticallCommand(sock, chatId, message, args);
+                }
+                commandExecuted = true;
+                break;            case userMessage.startsWith('.sora'):
                 await soraCommand(sock, chatId, message);
                 break;
             default:
