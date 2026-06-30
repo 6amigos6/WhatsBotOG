@@ -27,28 +27,73 @@ const PLATFORM_HOSTS = [
 
 const RAW_HOST = (PLATFORM_HOSTS[0] || "").replace(/^https?:\/\//, "").replace(/\/+$/, "").replace(/\s/g, "")
 const getURL = () => {
+  // Check if we have a proper external URL from env
   if (RAW_HOST && RAW_HOST !== "localhost" && !RAW_HOST.includes("localhost") && !RAW_HOST.includes("127.0.0.1") && !RAW_HOST.startsWith("0."))
     return "https://" + RAW_HOST
-  // Try environment-specific URL construction
+  // Platform-specific URLs
   if (process.env.RAILWAY_STATIC_URL) return process.env.RAILWAY_STATIC_URL
   if (process.env.RENDER_EXTERNAL_URL) return process.env.RENDER_EXTERNAL_URL
   if (process.env.KOYEB_URL) return process.env.KOYEB_URL
+  if (process.env.KOYEB_PUBLIC_DOMAIN) return "https://" + process.env.KOYEB_PUBLIC_DOMAIN
   if (process.env.HEROKU_APP_NAME) return "https://" + process.env.HEROKU_APP_NAME + ".herokuapp.com"
   if (process.env.FLY_APP_NAME) return "https://" + process.env.FLY_APP_NAME + ".fly.dev"
-  // Check for common reverse proxy headers
+  if (process.env.DOMAIN) return "https://" + process.env.DOMAIN
+  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL
+  // Docker / host detection
+  if (process.env.HOSTNAME && process.env.HOSTNAME !== "localhost" && !process.env.HOSTNAME.startsWith("ip-"))
+    return "http://" + process.env.HOSTNAME + ":" + PORT
+  // Last fallback: localhost
   return "http://localhost:" + PORT
 }
 
-const tokens = new Map()
+// Persistent token storage
+const TOKENS_FILE = path.join(SESSIONS_DIR, "tokens.json")
+let tokens = {}
+
+// Load persisted tokens
+try {
+  if (fs.existsSync(TOKENS_FILE)) {
+    tokens = JSON.parse(fs.readFileSync(TOKENS_FILE, "utf-8"))
+    // Clean expired tokens on startup
+    const now = Date.now()
+    let changed = false
+    for (const [tok, data] of Object.entries(tokens)) {
+      if (data.expires < now) { delete tokens[tok]; changed = true }
+    }
+    if (changed) fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokens))
+  }
+} catch(e) { tokens = {} }
+
+function saveTokens() {
+  try { fs.writeFileSync(TOKENS_FILE, JSON.stringify(tokens)) } catch(e) {}
+}
+
 function generateToken(phone) {
   const token = crypto.randomBytes(24).toString("hex")
-  tokens.set(token, phone)
-  setTimeout(() => tokens.delete(token), 86400000)
+  tokens[token] = { phone, expires: Date.now() + 86400000, created: Date.now() }
+  saveTokens()
   return token
 }
 function validateToken(token) {
-  return tokens.has(token) ? tokens.get(token) : null
+  const data = tokens[token]
+  if (!data) return null
+  if (data.expires < Date.now()) {
+    delete tokens[token]
+    saveTokens()
+    return null
+  }
+  return data.phone
 }
+
+// Periodic token cleanup every hour
+setInterval(() => {
+  const now = Date.now()
+  let changed = false
+  for (const [tok, data] of Object.entries(tokens)) {
+    if (data.expires < now) { delete tokens[tok]; changed = true }
+  }
+  if (changed) saveTokens()
+}, 3600000)
 
 // Long-polling listeners
 const updateListeners = new Map()
@@ -61,6 +106,70 @@ function notifyUpdate(phone) {
     listeners.clear()
   }
 }
+
+// ====== CACHE MANAGEMENT ======
+// In-memory message cache with TTL
+const msgCache = new Map()
+function getCachedMessages(phone, jid) {
+  const key = phone + ":" + jid
+  const cached = msgCache.get(key)
+  if (cached && Date.now() - cached.time < 5000) return cached.data
+  return null
+}
+function setCachedMessages(phone, jid, data) {
+  const key = phone + ":" + jid
+  msgCache.set(key, { data, time: Date.now() })
+}
+function clearMsgCache(phone) {
+  for (const key of msgCache.keys()) {
+    if (key.startsWith(phone + ":")) msgCache.delete(key)
+  }
+}
+
+// Media cache auto-cleaner: removes files older than 1 hour
+function cleanMediaCache() {
+  try {
+    if (!fs.existsSync(MEDIA_CACHE_DIR)) return
+    const phones = fs.readdirSync(MEDIA_CACHE_DIR)
+    const cutoff = Date.now() - 3600000 // 1 hour
+    let cleaned = 0, freedBytes = 0
+    for (const phoneDir of phones) {
+      const dirPath = path.join(MEDIA_CACHE_DIR, phoneDir)
+      try {
+        const files = fs.readdirSync(dirPath)
+        for (const file of files) {
+          const filePath = path.join(dirPath, file)
+          const stat = fs.statSync(filePath)
+          if (stat.mtimeMs < cutoff) {
+            freedBytes += stat.size
+            fs.unlinkSync(filePath)
+            cleaned++
+          }
+        }
+        // Remove empty directories
+        if (fs.readdirSync(dirPath).length === 0) fs.rmdirSync(dirPath)
+      } catch(e) {}
+    }
+    if (cleaned > 0) console.log(`🧹 Cache cleaned: ${cleaned} files (${(freedBytes/1024/1024).toFixed(1)}MB)`)
+  } catch(e) { console.error("Cache cleanup error:", e.message) }
+}
+
+// Run cache cleaner every 30 minutes
+setInterval(cleanMediaCache, 1800000)
+// Run initial cleanup after 1 minute
+setTimeout(cleanMediaCache, 60000)
+
+// Periodic memory cache cleanup (every 5 minutes)
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, entry] of msgCache.entries()) {
+    if (now - entry.time > 10000) msgCache.delete(key)
+  }
+  // Clean old dataCache entries
+  for (const [phone, entry] of dataCache.entries()) {
+    if (now - entry.time > 10000) dataCache.delete(phone)
+  }
+}, 300000)
 
 // Data cache per phone with TTL
 const dataCache = new Map()
@@ -129,7 +238,15 @@ function startServer() {
   app.use(express.static(PUBLIC_DIR, { maxAge: "1h", etag: true }))
 
   // ====== PUBLIC ======
-  app.get("/api/health", (req, res) => res.json({ status: "ok", server: getURL() }))
+  app.get("/api/health", (req, res) => {
+    const mem = process.memoryUsage()
+    res.json({ 
+      status: "ok", 
+      server: getURL(),
+      uptime: process.uptime(),
+      memory: { rss: Math.round(mem.rss/1024/1024) + "MB", heap: Math.round(mem.heapUsed/1024/1024) + "MB" }
+    })
+  })
 
   app.get("/api/debug_token/:phone", (req, res) => {
     const phone = req.params.phone
@@ -152,11 +269,21 @@ function startServer() {
     res.json({ valid: true, phone: req.authPhone, server: getURL() })
   })
 
-  // GET /api/chats - list all chats (lightweight, only metadata)
+  // GET /api/chats - list all chats (with compression for large datasets)
   app.get("/api/chats", authenticate, (req, res) => {
     const phone = req.authPhone
     const data = getCachedData(phone)
     if (!data) return res.json({ chats: [] })
+
+    // Limit contacts sent to reduce payload
+    const contacts = data._contacts || {}
+    const limitedContacts = {}
+    let count = 0
+    for (const [jid, c] of Object.entries(contacts)) {
+      if (count >= 50) break
+      limitedContacts[jid] = c
+      count++
+    }
 
     const chats = []
     for (const [jid, chat] of Object.entries(data)) {
@@ -164,7 +291,7 @@ function startServer() {
       const msgs = chat.messages || []
       const last = msgs.length > 0 ? msgs[msgs.length - 1] : null
       let name = chat.name || jid.split("@")[0]
-      if (data._contacts && data._contacts[jid]) name = data._contacts[jid].name || name
+      if (contacts[jid]) name = contacts[jid].name || name
       chats.push({
         jid, name,
         type: chat.type || (jid.endsWith("@g.us") ? "group" : "individual"),
@@ -176,10 +303,10 @@ function startServer() {
     chats.sort((a, b) => (b.updated || 0) - (a.updated || 0))
 
     res.set("Cache-Control", "no-cache")
-    res.json({ chats, contacts: data._contacts || {} })
+    res.json({ chats, contacts: limitedContacts })
   })
 
-  // GET /api/messages - paginated messages for a chat
+  // GET /api/messages - paginated messages for a chat (with in-memory caching)
   app.get("/api/messages", authenticate, (req, res) => {
     const phone = req.authPhone
     const jid = req.query.jid
@@ -187,6 +314,12 @@ function startServer() {
     const before = parseInt(req.query.before) || 0
 
     if (!jid) return res.status(400).json({ error: "Missing jid" })
+
+    // Check memory cache first
+    if (!before) {
+      const cached = getCachedMessages(phone, jid)
+      if (cached) return res.json(cached)
+    }
 
     const data = getCachedData(phone)
     if (!data || !data[jid]) return res.json({ messages: [], name: jid.split("@")[0], hasMore: false })
@@ -201,8 +334,7 @@ function startServer() {
     const hasMore = msgs.length > limit
     msgs = msgs.slice(-limit)
 
-    res.set("Cache-Control", "no-cache")
-    res.json({
+    const result = {
       messages: msgs,
       name: chat.name || jid.split("@")[0],
       type: chat.type || "individual",
@@ -211,7 +343,13 @@ function startServer() {
       total: (chat.messages || []).length,
       pic: getProfilePic(phone, jid),
       contacts: data._contacts || {}
-    })
+    }
+
+    // Cache in memory (only for first page)
+    if (!before) setCachedMessages(phone, jid, result)
+
+    res.set("Cache-Control", "no-cache")
+    res.json(result)
   })
 
   // Long-polling
