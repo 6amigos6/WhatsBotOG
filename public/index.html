@@ -133,6 +133,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 <input type="text" id="ti" placeholder="Paste token" autocomplete="off">
 <button onclick="login()">Authenticate</button>
 <div class="er" id="ae"></div>
+<div id="retry" style="display:none;margin-top:12px"><button onclick="location.reload()" style="padding:8px 20px;background:#374248;color:#e9edef;border:none;border-radius:6px;cursor:pointer;font-size:13px">Try Again</button></div>
 </div></div></div>
 
 <script>
@@ -140,8 +141,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 var T="",P="",J="",CHT={},SEEN={},AT_BTM=true,LOAD_OLD=false,POLL=true;
 var TM=null,CHATS=[],STS_MAP={},STS_ORDER=[],ST_IDX=0;
 
-// URL token
-(function(){var u=new URLSearchParams(location.search),t=u.get("token");if(t){document.getElementById("ti").value=t;setTimeout(login,50)}})();
+// URL token - auto login from Telegram link
+(function(){
+  var u=new URLSearchParams(location.search),t=u.get("token");
+  if(t){
+    document.getElementById("ti").value=t;
+    document.querySelector(".auth-c button").textContent="Connecting...";
+    document.querySelector(".auth-c button").disabled=true;
+    setTimeout(login,100);
+  }
+})();
 
 // ========== HELPERS ==========
 function api(p,cb){
@@ -161,7 +170,10 @@ function login(){
   T=document.getElementById("ti").value.trim();
   if(!T){document.getElementById("ae").textContent="Enter token";return}
   document.getElementById("ae").textContent="";
-  api("/api/check",function(r){if(r&&r.valid){P=r.phone;boot()}else{document.getElementById("ae").textContent=r?r.error:"Invalid token"}})
+  api("/api/check",function(r){if(r&&r.valid){P=r.phone;boot()}else{document.getElementById("ae").textContent=r?r.error:"Invalid or expired token";
+   document.querySelector(".auth-c button").textContent="Retry";
+   document.querySelector(".auth-c button").disabled=false;
+   document.getElementById("retry").style.display="block"}})
 }
 
 // ========== BOOT ==========

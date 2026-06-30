@@ -490,12 +490,15 @@ if (chatId) await tgBot.sendMessage(chatId, "Connected!\n+" + phone + "\n" + (so
         } else {
           const isFailure = errMsg.includes("Connection Failure") || code === 503
           if (isFailure) { handlersLoaded.delete(phone);
-            delete sessionsData[phone]; saveSessionsData(); delete activeConnections[phone]
-            if (!sessionsData[phone]?.connectedAt) {
-              if (chatId) await tgBot.sendMessage(chatId, "Failed to connect +" + phone + ". Check if number is registered on WhatsApp. Try QR method.")
-            }
+            if (sessionsData[phone]) sessionsData[phone].status = "disconnected";
+            else sessionsData[phone] = { phone, status: "disconnected", method: method };
+            saveSessionsData(); delete activeConnections[phone]
+            if (chatId) await tgBot.sendMessage(chatId, "Failed to connect +" + phone + ". Check if number is registered on WhatsApp. Try QR method.")
           } else {
-            handlersLoaded.delete(phone); delete sessionsData[phone]; saveSessionsData(); delete activeConnections[phone]
+            handlersLoaded.delete(phone);
+            if (sessionsData[phone]) sessionsData[phone].status = "disconnected";
+            else sessionsData[phone] = { phone, status: "disconnected", method: method };
+            saveSessionsData(); delete activeConnections[phone]
           }
         }
         if (callbacks.onDisconnected) callbacks.onDisconnected(phone, lastDisconnect?.error)
@@ -510,14 +513,16 @@ if (chatId) await tgBot.sendMessage(chatId, "Connected!\n+" + phone + "\n" + (so
         if (!connOpen && !qrSent) {
           if (chatId) tgBot.sendMessage(chatId, "Timeout for +" + phone + ": QR not generated.")
           if (activeConnections[phone]) { activeConnections[phone].end(new Error("qr timeout")); delete activeConnections[phone] }
-          handlersLoaded.delete(phone); delete sessionsData[phone]; saveSessionsData()
+          handlersLoaded.delete(phone);
+          if (sessionsData[phone]) sessionsData[phone].status = "disconnected";
+          saveSessionsData()
         }
       }, 30000)
       setTimeout(() => {
         if (!connOpen) {
           if (chatId) tgBot.sendMessage(chatId, "QR scan timeout for +" + phone + ".")
           if (activeConnections[phone]) { activeConnections[phone].end(new Error("qr scan timeout")); delete activeConnections[phone] }
-          if (sessionsData[phone]?.status !== "logged_out") { delete sessionsData[phone]; saveSessionsData() }
+          if (sessionsData[phone]?.status !== "logged_out") { sessionsData[phone].status = "disconnected"; saveSessionsData() }
         }
       }, 120000)
     }
@@ -583,7 +588,7 @@ async function requestPairingCodeWithRetry(sock, phone, tgBot, chatId, maxRetrie
     { parse_mode: "Markdown" }
   )
   if (activeConnections[phone]) { activeConnections[phone].end(new Error("Pair timeout")); delete activeConnections[phone] }
-  delete sessionsData[phone]; saveSessionsData()
+  if (sessionsData[phone]) sessionsData[phone].status = "disconnected"; saveSessionsData()
 }
 
 async function connectQR(phone, tgBot, chatId) { return connectWithPhone(phone, "qr", tgBot, chatId) }

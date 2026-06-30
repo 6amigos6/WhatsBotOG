@@ -33,7 +33,7 @@ async function autoReconnect() {
   
   // Check sessions.json for connected sessions
   for (const [phone, session] of Object.entries(sessionsData)) {
-    if (session.status === 'connected' || session.status === 'reconnecting') {
+    if (session.status === 'connected' || session.status === 'reconnecting' || session.status === 'disconnected') {
       console.log('🔄 Auto-reconnecting to +' + phone + '...')
       const method = session.method || 'qr'
       try {
@@ -79,16 +79,7 @@ async function autoReconnect() {
     console.log('No sessions to auto-reconnect: ' + e.message)
   }
   
-  // Clean up stale sessions that couldn't be reconnected
-  const wa2 = require('./wa_manager')
-  const staleEntries = Object.entries(wa2.sessionsData || {}).filter(([p, s]) => 
-    s.status === 'logged_out' || s.status === 'timeout' || s.status === 'failed' || s.status === 'disconnected'
-  )
-  for (const [phone] of staleEntries) {
-    console.log('🧹 Cleaning stale session:', phone)
-    delete wa2.sessionsData[phone]
-  }
-  wa2.saveSessionsData()
+  // Note: stale sessions are kept for potential reactivation by user
   
   if (!reconnected) console.log('No previous WhatsApp sessions found. Use Telegram to connect.')
 }
