@@ -35,3 +35,4 @@ media_cache/
 data/messageCount.json
 data/autoread.json
 data/autoStatus.json
+data/antidelete_store.json
