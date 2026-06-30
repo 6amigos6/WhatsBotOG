@@ -238,6 +238,42 @@ function startServer() {
   app.use(express.static(PUBLIC_DIR, { maxAge: "1h", etag: true }))
 
   // ====== PUBLIC ======
+  // Detailed diagnostic endpoint for WP Track debugging
+  app.get("/api/diagnose", (req, res) => {
+    const mem = process.memoryUsage()
+    const diag = {
+      status: "ok",
+      server: getURL(),
+      rawHost: RAW_HOST,
+      platformHosts: PLATFORM_HOSTS.filter(Boolean),
+      env: {
+        WP_TRACK_HOST: process.env.WP_TRACK_HOST || null,
+        PUBLIC_URL: process.env.PUBLIC_URL || null,
+        APP_URL: process.env.APP_URL || null,
+        RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN || null,
+        RAILWAY_STATIC_URL: process.env.RAILWAY_STATIC_URL || null,
+        RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL || null,
+        KOYEB_PUBLIC_DOMAIN: process.env.KOYEB_PUBLIC_DOMAIN || null,
+        KOYEB_URL: process.env.KOYEB_URL || null,
+        FLY_APP_NAME: process.env.FLY_APP_NAME || null,
+        HEROKU_APP_NAME: process.env.HEROKU_APP_NAME || null,
+        HOSTNAME: process.env.HOSTNAME || null,
+        DOMAIN: process.env.DOMAIN || null,
+        HOST: process.env.HOST || null,
+        PORT: process.env.PORT || null,
+        WP_TRACK_PORT: process.env.WP_TRACK_PORT || null,
+      },
+      tokenCount: Object.keys(tokens).length,
+      uptime: Math.floor(process.uptime()) + "s",
+      memory: { 
+        rss: Math.round(mem.rss/1024/1024) + "MB", 
+        heapTotal: Math.round(mem.heapTotal/1024/1024) + "MB",
+        heapUsed: Math.round(mem.heapUsed/1024/1024) + "MB" 
+      }
+    }
+    res.json(diag)
+  })
+
   app.get("/api/health", (req, res) => {
     const mem = process.memoryUsage()
     res.json({ 

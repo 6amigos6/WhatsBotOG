@@ -13,8 +13,6 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .menu
 │ ⌬ .ping
 │ ⌬ .tts
-│ ⌬ .fact
-│ ⌬ .groupinfo
 │ ⌬ .vv
 │ ⌬ .ss
 │ ⌬ .jid
@@ -28,7 +26,6 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .update
 │ ⌬ .setpp
 │ ⌬ .autoread
-│ ⌬ .autoreact
 │ ⌬ .autostatus
 │ ⌬ .anticall
 │ ⌬ .pmblocker

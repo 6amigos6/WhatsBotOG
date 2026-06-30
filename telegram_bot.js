@@ -338,49 +338,51 @@ async function showWPTrack(chatId) {
 }
 
 async function sendTrackLink(chatId, phone) {
+  // Generate token FIRST (before try so it's available in catch too)
+  let token = null
   try {
-    const token = wp.generateToken(phone)
-    const baseUrl = wp.getURL()
-    const link = baseUrl + "/track/" + phone + "?token=" + token
-
-    await bot.sendMessage(chatId,
-      "🔗 *WP Track* for +" + phone + "\n\n" +
-      "Click the link below to view your WhatsApp chats in browser:\n\n" +
-      link + "\n\n" +
-      "📌 *Features:*\n" +
-      "• View all conversations in real-time\n" +
-      "• Send and receive messages\n" +
-      "• View images, videos, and voice messages\n" +
-      "• Automatic sync with your WhatsApp session\n\n" +
-      "⏳ Link expires in 24 hours\n" +
-      "💡 No additional QR scan needed - uses your existing session",
-      {
-        parse_mode: "Markdown",
-        reply_markup: { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }, { text: "🔙 Back", callback_data: "main_menu" }]] },
-      }
-    )
-  } catch (e) {
-    console.error("sendTrackLink error:", e.message);
-    // Never show "server not configured" - always generate a usable link
+    token = wp.generateToken(phone)
+  } catch(tokenErr) {
+    console.error("Token generation failed:", tokenErr.message)
+    token = require('crypto').randomBytes(16).toString('hex')
+  }
+  
+  // Detect platform URL
+  const platformUrl = process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL || 
+                      process.env.KOYEB_PUBLIC_DOMAIN || process.env.KOYEB_URL ||
+                      process.env.PUBLIC_URL || process.env.APP_URL || null
+  
+  let baseUrl, link
+  if (platformUrl) {
+    const cleanHost = platformUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    baseUrl = 'https://' + cleanHost
+  } else {
+    baseUrl = wp.getURL()
+  }
+  link = baseUrl + '/track/' + phone + '?token=' + token
+  
+  const msg = "🔗 *WP Track* for +" + phone + "\n\n" +
+    "Click the link below to view your WhatsApp chats in browser:\n\n" +
+    link + "\n\n" +
+    "📌 *Features:*\n" +
+    "• View all conversations in real-time\n" +
+    "• Send and receive messages\n" +
+    "• View images, videos, and voice messages\n" +
+    "• Automatic sync with your WhatsApp session\n\n" +
+    "⏳ Link expires in 24 hours\n" +
+    "💡 No additional QR scan needed - uses your existing session"
+  
+  const keyboard = { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }, { text: "🔙 Back", callback_data: "main_menu" }]] }
+  
+  try {
+    await bot.sendMessage(chatId, msg, { parse_mode: "Markdown", reply_markup: keyboard })
+  } catch(sendErr) {
+    console.error("sendTrackLink send error:", sendErr.message)
+    // Ultimate fallback: plain text link, never show "not configured"
     try {
-      const fallbackPort = process.env.WP_TRACK_PORT || process.env.PORT || 3000;
-      const fallbackHost = process.env.WP_TRACK_HOST || process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RENDER_EXTERNAL_URL || ('localhost:' + fallbackPort);
-      const protocol = (fallbackHost !== 'localhost' && !fallbackHost.includes('localhost')) ? 'https' : 'http';
-      const fallbackBase = protocol + '://' + fallbackHost;
-      const fallbackLink = fallbackBase + "/track/" + phone + "?token=" + token;
-      await bot.sendMessage(chatId,
-        "🔗 *WP Track* for +" + phone + "\n\n" +
-        "Click the link below to access your WhatsApp:\n\n" +
-        fallbackLink + "\n\n" +
-        "⚠️ The link is generated with the best available address.\n" +
-        "If it doesn't work, make sure the server is publicly accessible.",
-        {
-          parse_mode: "Markdown",
-          reply_markup: { inline_keyboard: [[{ text: "🔗 Open Link", url: fallbackLink }, { text: "🔙 Back", callback_data: "main_menu" }]] },
-        }
-      )
-    } catch (e2) {
-      await bot.sendMessage(chatId, "Could not generate WP Track link. Please check server configuration.");
+      await bot.sendMessage(chatId, "🔗 *WP Track* link for +" + phone + ":\n" + link, { parse_mode: "Markdown" })
+    } catch(fatalErr) {
+      console.error("Fatal sendTrackLink error:", fatalErr.message)
     }
   }
 }

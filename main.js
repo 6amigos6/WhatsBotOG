@@ -49,11 +49,9 @@ const tiktokCommand = require('./commands/tiktok');
 const { replyCommand, handleAutoDownload, isReplyEnabled } = require('./commands/reply');
 // removed
 // removed
-const factCommand = require('./commands/fact');
 // removed
 const pingCommand = require('./commands/ping');
 // removed
-const groupInfoCommand = require('./commands/groupinfo');
 const staffCommand = require('./commands/staff');
 const viewOnceCommand = require('./commands/viewonce');
 const { incrementMessageCount, topMembers } = require('./commands/topmembers');
@@ -270,7 +268,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoreact', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.cleartmp', '.setpp', '.clearsession', '.areact', '.autoread', '.pmblocker'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         
@@ -359,9 +357,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 commandExecuted = true;
                 break;
-            case userMessage === '.fact':
-                await factCommand(sock, chatId, message, message);
-                break;
+
             case userMessage.startsWith('.heart'):
                 await handleHeart(sock, chatId, message);
                 break;
@@ -421,13 +417,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 commandExecuted = true;
                 break;
             case userMessage === '.jid':
-                await groupInfoCommand(sock, chatId, message);
+                const groupJid = message.key.remoteJid;
+                await sock.sendMessage(chatId, { text: '📱 *JID:* ' + groupJid }, { quoted: message });
                 commandExecuted = true;
                 break;
-            case userMessage === '.groupinfo':
-                await groupInfoCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
+
             case userMessage === '.staff':
                 await staffCommand(sock, chatId, message);
                 commandExecuted = true;
