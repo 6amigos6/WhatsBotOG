@@ -361,18 +361,16 @@ async function sendTrackLink(chatId, phone) {
   }
   link = baseUrl + '/track/' + phone + '?token=' + token
   
-  const msg = "╭──────────────────────────────╮\n" +
-    "│   📍 *WP TRACK READY*          │\n" +
-    "├──────────────────────────────┤\n" +
-    "│ 👤 *Number*                    │\n" +
-    "│   +" + phone + "                │\n" +
-    "│                                │\n" +
-    "│ 📋 *Track Link*                │\n" +
-    "│   `" + link + "`  │\n" +
-    "│                                │\n" +
-    "│ ☝️ Tap the Track Link above    │\n" +
-    "│    to copy it instantly.       │\n" +
-    "╰──────────────────────────────╯"
+  const msg = "╭─ 📍 *WP TRACK*\n" +
+    "│\n" +
+    "│ 👤 *Number*\n" +
+    "│ +" + phone + "\n" +
+    "│\n" +
+    "│ 📋 *Copy Link*\n" +
+    "│ `" + link + "`\n" +
+    "│\n" +
+    "│ ✅ Tap the link above to copy it.\n" +
+    "╰────────────────"
   
   const keyboard = { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
   
