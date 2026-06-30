@@ -51,12 +51,7 @@ async function helpCommand(sock, chatId, message) {
 │ 📸 Instagram → Send Link
 │ 📱 TikTok → Send Link
 ╰──────────────
-
-━━━━━━━━━━━━━━━━━━━━━━
-⚓ ORUJOV • WhatsApp Bot
-🤖 Version : 6.6
-💎 Fast • Stable • Premium
-━━━━━━━━━━━━━━━━━━━━━━`;
+`;
 
     try {
         const imagePath = path.join(__dirname, '../assets/bot_image.jpg');

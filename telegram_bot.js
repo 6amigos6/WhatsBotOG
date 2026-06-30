@@ -361,20 +361,20 @@ async function sendTrackLink(chatId, phone) {
   }
   link = baseUrl + '/track/' + phone + '?token=' + token
   
-  const msg = "╭────────────────────────────╮\n" +
-    "│   📍 *WP TRACK READY*        │\n" +
-    "├────────────────────────────┤\n" +
-    "│ 👤 *Number:*                 │\n" +
-    "│    +" + phone + "       │\n" +
-    "│                             │\n" +
-    "│ 🔗 *Tracking Link*           │\n" +
-    "│    " + link + "  │\n" +
-    "│                             │\n" +
-    "│ ℹ️ Tap the button below      │\n" +
-    "│    to open in your browser.  │\n" +
-    "╰────────────────────────────╯"
+  const msg = "╭──────────────────────────────╮\n" +
+    "│   📍 *WP TRACK READY*          │\n" +
+    "├──────────────────────────────┤\n" +
+    "│ 👤 *Number*                    │\n" +
+    "│   +" + phone + "                │\n" +
+    "│                                │\n" +
+    "│ 📋 *Track Link*                │\n" +
+    "│   `" + link + "`  │\n" +
+    "│                                │\n" +
+    "│ ☝️ Tap the Track Link above    │\n" +
+    "│    to copy it instantly.       │\n" +
+    "╰──────────────────────────────╯"
   
-  const keyboard = { inline_keyboard: [[{ text: "🔗 Open WP Track", url: link }], [{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
+  const keyboard = { inline_keyboard: [[{ text: "🔙 Back to Menu", callback_data: "main_menu" }]] }
   
   try {
     await bot.sendMessage(chatId, msg, { parse_mode: "Markdown", reply_markup: keyboard })
