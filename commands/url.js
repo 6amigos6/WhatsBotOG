@@ -1,9 +1,8 @@
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
-const { UploadFileUgu, TelegraPh, floNime } = require('../lib/uploader');
+const { UploadFileUgu, TelegraPh } = require('../lib/uploader');
 
-// Download any media type from message to buffer
 async function downloadMedia(msg, mediaType) {
   try {
     const stream = await downloadContentFromMessage(msg, mediaType);
@@ -16,84 +15,61 @@ async function downloadMedia(msg, mediaType) {
   }
 }
 
-// Extract media from message (including quoted, view-once)
 function extractMedia(message) {
   const m = message.message || {};
-
-  // Check current message
-  if (m.imageMessage) return { msg: m.imageMessage, type: 'image', ext: '.jpg', fileName: m.imageMessage.fileName };
-  if (m.videoMessage) return { msg: m.videoMessage, type: 'video', ext: '.mp4', fileName: m.videoMessage.fileName };
-  if (m.audioMessage) return { msg: m.audioMessage, type: 'audio', ext: '.mp3', fileName: 'audio.mp3' };
-  if (m.stickerMessage) return { msg: m.stickerMessage, type: 'sticker', ext: '.webp', fileName: 'sticker.webp' };
+  if (m.imageMessage) return { msg: m.imageMessage, type: 'image', ext: '.jpg' };
+  if (m.videoMessage) return { msg: m.videoMessage, type: 'video', ext: '.mp4' };
+  if (m.audioMessage) return { msg: m.audioMessage, type: 'audio', ext: '.mp3' };
+  if (m.stickerMessage) return { msg: m.stickerMessage, type: 'sticker', ext: '.webp' };
   if (m.documentMessage) {
     const fName = m.documentMessage.fileName || 'file.bin';
-    const ext = path.extname(fName) || '.bin';
-    return { msg: m.documentMessage, type: 'document', ext, fileName: fName };
+    return { msg: m.documentMessage, type: 'document', ext: path.extname(fName) || '.bin' };
   }
-
-  // Check quoted message
   const quoted = m.extendedTextMessage?.contextInfo?.quotedMessage;
   if (quoted) {
-    if (quoted.imageMessage) return { msg: quoted.imageMessage, type: 'image', ext: '.jpg', fileName: quoted.imageMessage.fileName };
-    if (quoted.videoMessage) return { msg: quoted.videoMessage, type: 'video', ext: '.mp4', fileName: quoted.videoMessage.fileName };
-    if (quoted.audioMessage) return { msg: quoted.audioMessage, type: 'audio', ext: '.mp3', fileName: 'audio.mp3' };
-    if (quoted.stickerMessage) return { msg: quoted.stickerMessage, type: 'sticker', ext: '.webp', fileName: 'sticker.webp' };
+    if (quoted.imageMessage) return { msg: quoted.imageMessage, type: 'image', ext: '.jpg' };
+    if (quoted.videoMessage) return { msg: quoted.videoMessage, type: 'video', ext: '.mp4' };
+    if (quoted.audioMessage) return { msg: quoted.audioMessage, type: 'audio', ext: '.mp3' };
+    if (quoted.stickerMessage) return { msg: quoted.stickerMessage, type: 'sticker', ext: '.webp' };
     if (quoted.documentMessage) {
-      const fName = quoted.documentMessage.fileName || 'file.bin';
-      const ext = path.extname(fName) || '.bin';
-      return { msg: quoted.documentMessage, type: 'document', ext, fileName: fName };
+      return { msg: quoted.documentMessage, type: 'document', ext: path.extname(quoted.documentMessage.fileName || 'file.bin') || '.bin' };
     }
   }
-
-  // Check view-once containers
   const vv = m.viewOnceMessageV2?.message || m.viewOnceMessage?.message;
   if (vv) {
-    if (vv.imageMessage) return { msg: vv.imageMessage, type: 'image', ext: '.jpg', fileName: vv.imageMessage.fileName };
-    if (vv.videoMessage) return { msg: vv.videoMessage, type: 'video', ext: '.mp4', fileName: vv.videoMessage.fileName };
-    if (vv.audioMessage) return { msg: vv.audioMessage, type: 'audio', ext: '.mp3', fileName: 'audio.mp3' };
+    if (vv.imageMessage) return { msg: vv.imageMessage, type: 'image', ext: '.jpg' };
+    if (vv.videoMessage) return { msg: vv.videoMessage, type: 'video', ext: '.mp4' };
+    if (vv.audioMessage) return { msg: vv.audioMessage, type: 'audio', ext: '.mp3' };
     if (vv.documentMessage) {
-      const fName = vv.documentMessage.fileName || 'file.bin';
-      const ext = path.extname(fName) || '.bin';
-      return { msg: vv.documentMessage, type: 'document', ext, fileName: fName };
+      return { msg: vv.documentMessage, type: 'document', ext: path.extname(vv.documentMessage.fileName || 'file.bin') || '.bin' };
     }
   }
-
   return null;
 }
 
-// Upload with multiple providers in parallel (race), return fastest result
+// Sequential upload: try fastest provider first, fallback immediately on failure
 async function uploadFile(filePath, ext) {
-  const uploaders = [];
+  const isImage = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext);
 
-  // For images: try TelegraPh and Uguu in parallel
-  if (['.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-    uploaders.push(
-      TelegraPh(filePath).then(url => ({ url, provider: 'telegraph' })).catch(() => null)
-    );
-  }
-
-  // Always try Uguu (works for all types)
-  uploaders.push(
-    UploadFileUgu(filePath).then(res => {
+  if (isImage) {
+    // TelegraPh is fastest for images - try it first
+    try {
+      const url = await TelegraPh(filePath);
+      if (url) return { url, provider: 'telegraph' };
+    } catch {}
+    // Fallback to Uguu
+    try {
+      const res = await UploadFileUgu(filePath);
       const url = typeof res === 'string' ? res : (res.url || res.url_full || '');
-      return url ? { url, provider: 'uguu' } : null;
-    }).catch(() => null)
-  );
-
-  // Try floNime as additional option
-  uploaders.push(
-    (async () => {
-      try {
-        const buf = fs.readFileSync(filePath);
-        const res = await floNime(buf, { ext: ext.replace('.', '') });
-        return res?.url ? { url: res.url, provider: 'flonime' } : null;
-      } catch { return null; }
-    })()
-  );
-
-  const results = await Promise.allSettled(uploaders);
-  for (const r of results) {
-    if (r.status === 'fulfilled' && r.value) return r.value;
+      if (url) return { url, provider: 'uguu' };
+    } catch {}
+  } else {
+    // Uguu works for all non-image types
+    try {
+      const res = await UploadFileUgu(filePath);
+      const url = typeof res === 'string' ? res : (res.url || res.url_full || '');
+      if (url) return { url, provider: 'uguu' };
+    } catch {}
   }
   return null;
 }
@@ -108,7 +84,7 @@ async function urlCommand(sock, chatId, message) {
       return;
     }
 
-    // Show processing reaction
+    // Show processing
     await sock.sendMessage(chatId, { react: { text: '⏳', key: message.key } });
 
     const buffer = await downloadMedia(media.msg, media.type);
@@ -117,27 +93,25 @@ async function urlCommand(sock, chatId, message) {
       return;
     }
 
-    // Write to temp file
+    // Write temp and upload
     const tempDir = path.join(__dirname, '../temp');
     fs.mkdirSync(tempDir, { recursive: true });
-    const tempPath = path.join(tempDir, `${Date.now()}_${Math.random().toString(36).slice(2, 6)}${media.ext}`);
+    const tmpName = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}${media.ext}`;
+    const tempPath = path.join(tempDir, tmpName);
     fs.writeFileSync(tempPath, buffer);
 
-    // Upload
     const result = await uploadFile(tempPath, media.ext);
 
-    // Cleanup temp file immediately
+    // Cleanup temp immediately
     try { fs.unlinkSync(tempPath); } catch {}
 
     if (!result) {
-      await sock.sendMessage(chatId, { text: 'Failed to upload media. Try again later.' }, { quoted: message });
+      await sock.sendMessage(chatId, { text: 'Upload failed. Try again.' }, { quoted: message });
       return;
     }
 
-    // Remove reaction
     await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
 
-    // Send result with new design
     const msg = `╭─ 🌐 *FILE URL*\n\n🔗 ${result.url}`;
     await sock.sendMessage(chatId, { text: msg, parse_mode: 'Markdown' }, { quoted: message });
 
