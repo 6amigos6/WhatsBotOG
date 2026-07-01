@@ -205,12 +205,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
         if (!userMessage.startsWith('.')) {
 
             const rawMsg = rawText || userMessage;
-            const ytPattern = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/[\w\-]+/i;
             const igPattern = /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv|stories)\//i;
             const tkPattern = /https?:\/\/(?:www\.|vm\.|vt\.)?tiktok\.com\//i;
 
-            // Check reply mode for auto-download
-            if (isReplyEnabled()) {
+            // Auto-download when Reply Mode is OFF (.reply off)
+            // YouTube → MP3, Instagram → Reel/Post, TikTok → Video
+            if (!isReplyEnabled()) {
                 const downloaded = await handleAutoDownload(sock, chatId, rawMsg, message);
                 if (downloaded) return;
             }

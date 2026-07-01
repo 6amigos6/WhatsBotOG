@@ -1,19 +1,24 @@
 const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
-const yts = require("yt-search");
-const ytdl = require("ytdl-core");
-const { toAudio } = require("../lib/converter");
-const { igdl, ttdl, ytmp3, ytmp4 } = require("ruhend-scraper");
+const ytdlExec = require('youtube-dl-exec');
+const { igdl, ttdl } = require("ruhend-scraper");
 
 const DATA_FILE = path.join(__dirname, "..", "data", "reply.json");
+const TEMP_DIR = path.join(__dirname, "..", "temp");
+fs.mkdirSync(TEMP_DIR, { recursive: true });
 
-// URL patterns
+// YouTube URL patterns - all formats
 const YT_PATTERNS = [
-  /https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[\w-]+/i,
+  /https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[\w-]+/i,
+  /https?:\/\/youtu\.be\/[\w-]+/i,
   /https?:\/\/(?:www\.)?youtube\.com\/shorts\/[\w-]+/i,
-  /https?:\/\/(?:m\.)?youtube\.com\/watch\?v=[\w-]+/i,
+  /https?:\/\/(?:m\.|music\.)?youtube\.com\/watch\?v=[\w-]+/i,
+  /https?:\/\/(?:m\.|music\.)?youtube\.com\/shorts\/[\w-]+/i,
+  /https?:\/\/(?:www\.)?youtube\.com\/embed\/[\w-]+/i,
+  /https?:\/\/(?:www\.)?youtube\.com\/v\/[\w-]+/i,
 ];
+
 const IG_PATTERNS = [
   /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|tv)\/[\w-]+\/?/i,
   /https?:\/\/(?:www\.)?instagram\.com\/stories\/[\w.-]+\/[\d]+\/?/i,
@@ -26,17 +31,13 @@ const TT_PATTERNS = [
 
 function readState() {
   try {
-    if (fs.existsSync(DATA_FILE)) {
-      return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-    }
+    if (fs.existsSync(DATA_FILE)) return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
   } catch (e) {}
   return { enabled: false };
 }
 
 function writeState(state) {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(state));
-  } catch (e) {}
+  try { fs.writeFileSync(DATA_FILE, JSON.stringify(state)); } catch (e) {}
 }
 
 function isReplyEnabled() {
@@ -55,73 +56,89 @@ function detectPlatform(url) {
   return null;
 }
 
-// ============ YOUTUBE DOWNLOAD ============
+// ============ YOUTUBE DOWNLOAD (yt-dlp) ============
 async function downloadYouTube(sock, chatId, url) {
+  let tempFilePath = null;
   try {
-    // Send thumbnail first
+    // Send thumbnail with video info
     try {
+      const yts = require("yt-search");
       const search = await yts(url);
-      if (search && search.videos && search.videos.length > 0) {
-        const vid = search.videos[0];
-        if (vid.thumbnail) {
-          const thumbRes = await axios.get(vid.thumbnail, { responseType: "arraybuffer", timeout: 10000 });
-          await sock.sendMessage(chatId, {
-            image: Buffer.from(thumbRes.data),
-            caption: `🎵 *${vid.title}*\n⏱ ${vid.timestamp || "?"}\n📢 ${vid.author?.name || "?"}`,
-          });
-        }
+      const vid = search?.videos?.[0];
+      if (vid?.thumbnail) {
+        await sock.sendMessage(chatId, {
+          image: { url: vid.thumbnail },
+          caption: `╭─ 🎵 *YOUTUBE MP3*\n│\n│ 📌 ${vid.title}\n│ 👤 ${vid.author?.name || '?'}\n│ ⏱ ${vid.timestamp || '?'}\n╰────────────────`
+        });
       }
-    } catch (e) {
-      console.log("YT thumbnail error:", e.message);
+    } catch (e) { console.log("YT thumb error:", e.message); }
+
+    // Download audio via yt-dlp (fastest + most reliable)
+    const tmpName = `yt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.m4a`;
+    tempFilePath = path.join(TEMP_DIR, tmpName);
+
+    await ytdlExec(url, {
+      format: 'bestaudio[ext=m4a]/bestaudio',
+      output: tempFilePath,
+      noCheckCertificates: true,
+      preferFreeFormats: true,
+      noWarnings: true,
+      geoBypass: true,
+      addHeader: ['User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'],
+    });
+
+    if (!fs.existsSync(tempFilePath) || fs.statSync(tempFilePath).size < 1000) {
+      throw new Error("File empty");
     }
 
-    // Try multiple download sources for MP3
-    let audioBuffer = null;
+    const fileSize = (fs.statSync(tempFilePath).size / 1024 / 1024).toFixed(2);
+    console.log(`✅ YT audio: ${fileSize}MB`);
 
-    // Source 1: ytdl-core
-    try {
-      const stream = ytdl(url, { filter: "audioonly", quality: "lowestaudio" });
-      const chunks = [];
-      for await (const chunk of stream) chunks.push(chunk);
-      const buf = Buffer.concat(chunks);
-      audioBuffer = await toAudio(buf, "mp4");
-    } catch (e) {
-      console.log("ytdl-core failed:", e.message);
-    }
+    await sock.sendMessage(chatId, {
+      audio: { url: tempFilePath },
+      mimetype: 'audio/mp4',
+      fileName: `youtube_audio_${Date.now()}.m4a`,
+      caption: 'Downloaded By Orujov'
+    });
 
-    // Source 2: ruhend-scraper ytmp3
-    if (!audioBuffer) {
-      try {
-        const result = await ytmp3(url);
-        if (result && result.audio) {
-          const res = await axios.get(result.audio, { responseType: "arraybuffer", timeout: 30000 });
-          audioBuffer = Buffer.from(res.data);
-        }
-      } catch (e) {
-        console.log("ruhend ytmp3 failed:", e.message);
-      }
-    }
+    // Cleanup
+    try { fs.unlinkSync(tempFilePath); tempFilePath = null; } catch {}
+    return true;
 
-    // Source 3: ruhend-scraper ytmp4 (audio fallback)
-    if (!audioBuffer) {
-      try {
-        const result = await ytmp4(url);
-        if (result && result.audio) {
-          const res = await axios.get(result.audio, { responseType: "arraybuffer", timeout: 30000 });
-          audioBuffer = Buffer.from(res.data);
-        }
-      } catch (e) {
-        console.log("ruhend ytmp4 audio failed:", e.message);
-      }
-    }
-
-    if (audioBuffer) {
-      await sock.sendMessage(chatId, { audio: audioBuffer, mimetype: "audio/mpeg" });
-      return true;
-    }
-    return false;
   } catch (e) {
-    console.log("YT download error:", e.message);
+    console.error("YT download failed:", e.message);
+    if (tempFilePath) { try { fs.unlinkSync(tempFilePath); } catch {} }
+
+    // Fallback: yt-dlp JSON → axios
+    try {
+      const info = await ytdlExec(url, {
+        dumpSingleJson: true,
+        noCheckCertificates: true,
+        preferFreeFormats: true,
+        noWarnings: true,
+        geoBypass: true,
+      });
+      const af = info?.formats?.findLast(f =>
+        f.acodec && f.acodec !== 'none' && f.vcodec === 'none' && f.url && !f.cipher
+      );
+      if (af?.url) {
+        const res = await axios.get(af.url, {
+          responseType: 'arraybuffer', timeout: 120000,
+          headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' },
+          maxRedirects: 5,
+        });
+        const buf = Buffer.from(res.data);
+        if (buf.length > 1000) {
+          await sock.sendMessage(chatId, {
+            audio: buf, mimetype: 'audio/mp4',
+            caption: 'Downloaded By Orujov'
+          });
+          console.log(`✅ YT audio (fallback): ${(buf.length/1024/1024).toFixed(2)}MB`);
+          return true;
+        }
+      }
+    } catch (e2) { console.log("YT fallback failed:", e2.message?.slice(0, 60)); }
+
     return false;
   }
 }
@@ -129,113 +146,58 @@ async function downloadYouTube(sock, chatId, url) {
 // ============ INSTAGRAM DOWNLOAD ============
 async function downloadInstagram(sock, chatId, url) {
   try {
-    // Source 1: ruhend-scraper igdl
     try {
       const result = await igdl(url);
-      if (result && result.data && result.data.length > 0) {
+      if (result?.data?.length > 0) {
         for (const item of result.data) {
           const mediaUrl = item.url || item.downloadUrl || item;
           const res = await axios.get(typeof mediaUrl === "string" ? mediaUrl : mediaUrl, {
-            responseType: "arraybuffer",
-            timeout: 30000,
+            responseType: "arraybuffer", timeout: 30000,
           });
           const buf = Buffer.from(res.data);
           const isVideo = typeof mediaUrl === "string" && mediaUrl.includes(".mp4");
-          if (isVideo) {
-            await sock.sendMessage(chatId, { video: buf, caption: "📸 Instagram" });
-          } else {
-            await sock.sendMessage(chatId, { image: buf, caption: "📸 Instagram" });
-          }
+          if (isVideo) await sock.sendMessage(chatId, { video: buf, caption: "📸 Instagram" });
+          else await sock.sendMessage(chatId, { image: buf, caption: "📸 Instagram" });
         }
         return true;
       }
-    } catch (e) {
-      console.log("igdl failed:", e.message);
-    }
-
-    // Source 2: Instagram downloader API
-    try {
-      const res = await axios.post(
-        "https://instagram-downloader-download-instagram-videos-stories.p.rapidapi.com/index",
-        new URLSearchParams({ url }),
-        {
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            "X-RapidAPI-Key": "e2b3e27dc3msh3f7d8e9c1a4b5c6d7e8f9a0b1c",
-            "X-RapidAPI-Host": "instagram-downloader-download-instagram-videos-stories.p.rapidapi.com",
-          },
-          timeout: 15000,
-        }
-      );
-      if (res.data?.media) {
-        const mediaList = Array.isArray(res.data.media) ? res.data.media : [res.data.media];
-        for (const item of mediaList) {
-          const mediaUrl = item.url || item.thumbnail || item;
-          const resp = await axios.get(typeof mediaUrl === "string" ? mediaUrl : mediaUrl, {
-            responseType: "arraybuffer",
-            timeout: 30000,
-          });
-          await sock.sendMessage(chatId, { image: Buffer.from(resp.data), caption: "📸 Instagram" });
-        }
-        return true;
-      }
-    } catch (e) {
-      console.log("RapidAPI IG failed:", e.message);
-    }
-
+    } catch (e) { console.log("igdl failed:", e.message); }
     return false;
-  } catch (e) {
-    console.log("IG download error:", e.message);
-    return false;
-  }
+  } catch (e) { console.log("IG download error:", e.message); return false; }
 }
 
 // ============ TIKTOK DOWNLOAD ============
 async function downloadTikTok(sock, chatId, url) {
   try {
-    // Source 1: ruhend-scraper ttdl
     try {
       const result = await ttdl(url);
-      if (result && result.video) {
+      if (result?.video) {
         const res = await axios.get(result.video, { responseType: "arraybuffer", timeout: 30000 });
-        const buf = Buffer.from(res.data);
-        await sock.sendMessage(chatId, { video: buf, caption: "🎵 TikTok" });
+        await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: "🎵 TikTok" });
         return true;
       }
-      if (result && result.data && result.data.length > 0) {
+      if (result?.data?.length > 0) {
         for (const item of result.data) {
           const mediaUrl = item.url || item;
           const res = await axios.get(typeof mediaUrl === "string" ? mediaUrl : mediaUrl, {
-            responseType: "arraybuffer",
-            timeout: 30000,
+            responseType: "arraybuffer", timeout: 30000,
           });
           await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: "🎵 TikTok" });
         }
         return true;
       }
-    } catch (e) {
-      console.log("ttdl failed:", e.message);
-    }
+    } catch (e) { console.log("ttdl failed:", e.message); }
 
-    // Source 2: TikTok API fallback
     try {
-      const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, {
-        timeout: 15000,
-      });
+      const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, { timeout: 15000 });
       if (res.data?.data?.play) {
         const mediaRes = await axios.get(res.data.data.play, { responseType: "arraybuffer", timeout: 30000 });
         await sock.sendMessage(chatId, { video: Buffer.from(mediaRes.data), caption: "🎵 TikTok" });
         return true;
       }
-    } catch (e) {
-      console.log("TikWM failed:", e.message);
-    }
-
+    } catch (e) { console.log("TikWM failed:", e.message); }
     return false;
-  } catch (e) {
-    console.log("TT download error:", e.message);
-    return false;
-  }
+  } catch (e) { console.log("TT download error:", e.message); return false; }
 }
 
 // ============ MAIN HANDLER ============
@@ -246,12 +208,9 @@ async function replyCommand(sock, chatId, message, args) {
   if (text === "on") {
     writeState({ enabled: true });
     await sock.sendMessage(chatId, {
-      text: "✅ *Reply Mode Enabled*\n\n"
-        + "Automatic downloading has been enabled.\n\n"
-        + "• YouTube → Automatically downloads MP3 (Thumbnail first, then MP3).\n"
-        + "• Instagram → Automatically downloads Reel/Post.\n"
-        + "• TikTok → Automatically downloads watermark-free video.\n\n"
-        + "Simply send a supported link.",
+      text: "✅ *Reply Mode ON*\n\n"
+        + "• Auto-download is now *disabled*.\n"
+        + "• Reply to a YouTube/Instagram/TikTok link with `.reply` to download manually."
     });
     return;
   }
@@ -259,14 +218,15 @@ async function replyCommand(sock, chatId, message, args) {
   if (text === "off") {
     writeState({ enabled: false });
     await sock.sendMessage(chatId, {
-      text: "❌ *Reply Mode Disabled*\n\n"
-        + "Automatic downloading has been disabled.\n\n"
-        + "Reply to a YouTube, Instagram or TikTok link with `.reply` to download it manually.",
+      text: "❌ *Reply Mode OFF*\n\n"
+        + "• Auto-download is now *enabled*.\n"
+        + "• Simply send a YouTube link → MP3 downloads automatically.\n"
+        + "• Instagram/TikTok links also auto-download."
     });
     return;
   }
 
-  // Handle .reply with link from replied message
+  // Handle .reply with link from replied message (manual download)
   if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
     const quoted = message.message.extendedTextMessage.contextInfo.quotedMessage;
     const quotedText =
@@ -279,7 +239,7 @@ async function replyCommand(sock, chatId, message, args) {
     const url = extractUrl(quotedText);
     if (!url) {
       await sock.sendMessage(chatId, {
-        text: "❌ Please reply to a valid YouTube, Instagram or TikTok link.",
+        text: "❌ Reply to a valid YouTube, Instagram or TikTok link with `.reply`.",
       });
       return;
     }
@@ -287,7 +247,7 @@ async function replyCommand(sock, chatId, message, args) {
     const platform = detectPlatform(url);
     if (!platform) {
       await sock.sendMessage(chatId, {
-        text: "❌ Please reply to a valid YouTube, Instagram or TikTok link.",
+        text: "❌ Unsupported link. Supported: YouTube, Instagram, TikTok.",
       });
       return;
     }
@@ -301,28 +261,27 @@ async function replyCommand(sock, chatId, message, args) {
 
     if (!success) {
       await sock.sendMessage(chatId, {
-        text: "❌ Failed to download. The link may be invalid or the service is temporarily unavailable.",
+        text: "❌ Download failed. The link may be invalid or service unavailable.",
       });
     }
     return;
   }
 
-  // If just .reply with no args and no replied message -> show help
-  if (!text || text === "") {
-    await sock.sendMessage(chatId, {
-      text: "📥 *Reply Download Settings*\n\n"
-        + "• `.reply on` — Automatic downloading is enabled.\n"
-        + "• `.reply off` — Automatic downloading is disabled.\n"
-        + "• When Reply Mode is OFF, reply to a YouTube, Instagram or TikTok link with `.reply` to download it manually.\n\n"
-        + "Supported platforms: YouTube (MP3), Instagram (Reel/Post), TikTok (Video)",
-    });
-    return;
-  }
+  // Show help
+  await sock.sendMessage(chatId, {
+    text: "📥 *Reply Download System*\n\n"
+      + "Status: " + (isReplyEnabled() ? "✅ ON (Manual)" : "❌ OFF (Auto)") + "\n\n"
+      + "• `.reply off` → Auto-download YouTube links as MP3\n"
+      + "• `.reply on` → Manual download via `.reply` to link\n\n"
+      + "Supported: YouTube (MP3) • Instagram (Reel/Post) • TikTok (Video)"
+  });
 }
 
 // ============ AUTO-DOWNLOAD HANDLER ============
 async function handleAutoDownload(sock, chatId, text, message) {
-  if (!isReplyEnabled()) return false;
+  // When reply is OFF: auto-download YouTube/IG/TT links
+  // When reply is ON: do nothing (user must .reply manually)
+  if (isReplyEnabled()) return false;
 
   const url = extractUrl(text);
   if (!url) return false;
@@ -330,7 +289,8 @@ async function handleAutoDownload(sock, chatId, text, message) {
   const platform = detectPlatform(url);
   if (!platform) return false;
 
-  // Download automatically
+  await sock.sendMessage(chatId, { react: { text: "🔄", key: message.key } });
+
   let success = false;
   if (platform === "youtube") success = await downloadYouTube(sock, chatId, url);
   else if (platform === "instagram") success = await downloadInstagram(sock, chatId, url);
