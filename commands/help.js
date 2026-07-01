@@ -14,8 +14,6 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .ping
 │ ⌬ .tts
 │ ⌬ .vv
-│ ⌬ .ss
-│ ⌬ .jid
 │ ⌬ .url
 ╰──────────────
 
@@ -24,9 +22,7 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .mode
 │ ⌬ .setpp
 │ ⌬ .autoread
-│ ⌬ .autostatus
 │ ⌬ .anticall
-│ ⌬ .pmblocker
 │ ⌬ .antidelete
 ╰──────────────
 
@@ -36,7 +32,7 @@ async function helpCommand(sock, chatId, message) {
 │ ✦ .gemini
 │ ✦ .imagine
 │ ✦ .flux
-│ ✦ .sora
+│ ✦ .image
 ╰──────────────
 
 「 📥 DOWNLOAD 」

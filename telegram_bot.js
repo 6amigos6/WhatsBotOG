@@ -5,6 +5,7 @@ const wa = require("./wa_manager")
 const wp = require("./wp_track")
 const settings = require("./settings")
 const { sleep } = require("./lib/myfunc")
+const ai = require("./lib/ai_keys")
 
 function updateSettingsNumber(phone) {
   const settingsPath = path.join(__dirname, "settings.js")
@@ -96,6 +97,72 @@ function startBot(token) {
       case "wp_track":
         await showWPTrack(chatId)
         break
+      case "ai_management":
+        await showAIManagement(chatId)
+        break
+      case "ai_service_gpt":
+        await showAIService(chatId, "gpt")
+        break
+      case "ai_service_gemini":
+        await showAIService(chatId, "gemini")
+        break
+      case "ai_service_imagine":
+        await showAIService(chatId, "imagine")
+        break
+      case "ai_service_image":
+        await showAIService(chatId, "image")
+        break
+      case "ai_setkey":
+        await showAIKeySelection(chatId)
+        break
+      case "ai_setkey_gpt":
+        userStates[chatId] = { action: "ai_setkey", service: "gpt" }
+        const aiKeyMsgGpt = await bot.sendMessage(chatId, "🤖 *GPT API Key*\n\nSend your OpenAI API key for GPT.\n\nExample: `sk-xxxxxxxxxxxxxxxx`", { parse_mode: "Markdown" })
+        userStates[chatId].msgId = aiKeyMsgGpt.message_id
+        break
+      case "ai_setkey_gemini":
+        userStates[chatId] = { action: "ai_setkey", service: "gemini" }
+        const aiKeyMsgGemini = await bot.sendMessage(chatId, "🤖 *Gemini API Key*\n\nSend your Google Gemini API key.\n\nExample: `AIxxxxxxxxxxxxxxxx`", { parse_mode: "Markdown" })
+        userStates[chatId].msgId = aiKeyMsgGemini.message_id
+        break
+      case "ai_setkey_imagine":
+        userStates[chatId] = { action: "ai_setkey", service: "imagine" }
+        const aiKeyMsgImagine = await bot.sendMessage(chatId, "🤖 *Imagine API Key*\n\nSend your API key for Imagine image generation.\n\nLeave empty to use free API.", { parse_mode: "Markdown" })
+        userStates[chatId].msgId = aiKeyMsgImagine.message_id
+        break
+      case "ai_setkey_image":
+        userStates[chatId] = { action: "ai_setkey", service: "image" }
+        const aiKeyMsgImage = await bot.sendMessage(chatId, "🤖 *Image API Key*\n\nSend your API key for Image generation.\n\nLeave empty to use free API.", { parse_mode: "Markdown" })
+        userStates[chatId].msgId = aiKeyMsgImage.message_id
+        break
+      case "ai_delete_gpt":
+        ai.deleteKey("gpt")
+        await showAIService(chatId, "gpt")
+        break
+      case "ai_delete_gemini":
+        ai.deleteKey("gemini")
+        await showAIService(chatId, "gemini")
+        break
+      case "ai_delete_imagine":
+        ai.deleteKey("imagine")
+        await showAIService(chatId, "imagine")
+        break
+      case "ai_delete_image":
+        ai.deleteKey("image")
+        await showAIService(chatId, "image")
+        break
+      case "ai_toggle_gpt":
+        { const svc = ai.getAllServices().find(s => s.name === "gpt"); ai.setEnabled("gpt", !svc?.enabled); await showAIService(chatId, "gpt"); }
+        break
+      case "ai_toggle_gemini":
+        { const svc = ai.getAllServices().find(s => s.name === "gemini"); ai.setEnabled("gemini", !svc?.enabled); await showAIService(chatId, "gemini"); }
+        break
+      case "ai_toggle_imagine":
+        { const svc = ai.getAllServices().find(s => s.name === "imagine"); ai.setEnabled("imagine", !svc?.enabled); await showAIService(chatId, "imagine"); }
+        break
+      case "ai_toggle_image":
+        { const svc = ai.getAllServices().find(s => s.name === "image"); ai.setEnabled("image", !svc?.enabled); await showAIService(chatId, "image"); }
+        break
             default:
         if (data.startsWith("activate_bot_")) {
           const phone = data.replace("activate_bot_", "")
@@ -140,6 +207,16 @@ function startBot(token) {
 
     if (userStates[chatId]) {
       const state = userStates[chatId]
+      if (state.action === "ai_setkey") {
+        const service = state.service
+        if (text) {
+          ai.setKey(service, text)
+          ai.setEnabled(service, true)
+        }
+        delete userStates[chatId]
+        await showAIService(chatId, service)
+        return
+      }
       if (state.action === "pair" || state.action === "qr") {
         updateSettingsNumber(text)
         delete userStates[chatId]
@@ -181,6 +258,9 @@ async function showMainMenu(chatId) {
               { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
             ],
             [
+              { text: "\u{1F916} AI Management", callback_data: "ai_management" },
+            ],
+            [
               { text: "\u{1F504} Restart Sessions", callback_data: "restart" },
               { text: "\u{1F6AA} Logout Session", callback_data: "logout" },
             ],
@@ -205,6 +285,9 @@ async function showMainMenu(chatId) {
           ],
           [
             { text: "\u{1F4E1} WP Track", callback_data: "wp_track" },
+          ],
+          [
+            { text: "\u{1F916} AI Management", callback_data: "ai_management" },
           ],
           [
             { text: "\u{1F504} Restart Sessions", callback_data: "restart" },
@@ -553,5 +636,74 @@ async function doReconnectSession(chatId, phone) {
   await showSessionMenu(chatId, phone)
 }
 
+
+async function showAIManagement(chatId) {
+  const services = ai.getAllServices()
+  let msg = "🤖 *AI Management*\n\nManage your AI service configurations.\n\n"
+  msg += "╭───────────────\n"
+  for (const svc of services) {
+    const statusEmoji = svc.enabled ? "🟢" : "🔴"
+    msg += "│ " + statusEmoji + " *" + svc.name.charAt(0).toUpperCase() + svc.name.slice(1) + "*\n"
+    msg += "│   Key: `" + svc.keyPreview + "`\n"
+  }
+  msg += "╰───────────────\n\n"
+  msg += "Select a service to configure:"
+
+  const keyboard = services.map((svc) => [
+    { text: svc.enabled ? "🟢 " + svc.name.charAt(0).toUpperCase() + svc.name.slice(1) : "🔴 " + svc.name.charAt(0).toUpperCase() + svc.name.slice(1), callback_data: "ai_service_" + svc.name }
+  ])
+  keyboard.push([{ text: "🔙 Back to Menu", callback_data: "main_menu" }])
+
+  await bot.sendMessage(chatId, msg, {
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: keyboard }
+  })
+}
+
+async function showAIKeySelection(chatId) {
+  const keyboard = [
+    [{ text: "GPT", callback_data: "ai_setkey_gpt" }],
+    [{ text: "Gemini", callback_data: "ai_setkey_gemini" }],
+    [{ text: "Imagine", callback_data: "ai_setkey_imagine" }],
+    [{ text: "Image", callback_data: "ai_setkey_image" }],
+    [{ text: "🔙 Back", callback_data: "ai_management" }]
+  ]
+  await bot.sendMessage(chatId, "🤖 *Select AI Service*\n\nChoose which service to set an API key for:", {
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: keyboard }
+  })
+}
+
+async function showAIService(chatId, service) {
+  const services = ai.getAllServices()
+  const svc = services.find(s => s.name === service)
+  if (!svc) {
+    await showAIManagement(chatId)
+    return
+  }
+
+  const name = svc.name.charAt(0).toUpperCase() + svc.name.slice(1)
+  const statusEmoji = svc.enabled ? "🟢" : "🔴"
+  const statusText = svc.enabled ? "Enabled" : "Disabled"
+  const provider = svc.provider || "pollinations"
+
+  let msg = "🤖 *" + name + " Configuration*\n\n"
+  msg += "📋 *Service:* " + name + "\n"
+  msg += "🔧 *Provider:* " + provider + "\n"
+  msg += "🔑 *API Key:* `" + svc.keyPreview + "`\n"
+  msg += "📊 *Status:* " + statusEmoji + " " + statusText + "\n"
+
+  const keyboard = [
+    [{ text: "🔑 Set API Key", callback_data: "ai_setkey_" + service }],
+    [{ text: svc.enabled ? "🔴 Disable" : "🟢 Enable", callback_data: "ai_toggle_" + service }],
+    [{ text: "🗑 Delete Key", callback_data: "ai_delete_" + service }],
+    [{ text: "🔙 Back to AI Management", callback_data: "ai_management" }]
+  ]
+
+  await bot.sendMessage(chatId, msg, {
+    parse_mode: "Markdown",
+    reply_markup: { inline_keyboard: keyboard }
+  })
+}
 
 module.exports = { startBot }

@@ -55,10 +55,7 @@ const viewOnceCommand = require('./commands/viewonce');
 const { incrementMessageCount, topMembers } = require('./commands/topmembers');
 const setProfilePicture = require('./commands/setpp');
 const { anticallCommand, readState: readAnticallState } = require('./commands/anticall');
-const { pmblockerCommand, readState: readPmBlockerState } = require('./commands/pmblocker');
 const { handleAntideleteCommand, handleMessageRevocation, storeMessage } = require('./commands/antidelete');
-const { autoStatusCommand, handleStatusUpdate } = require('./commands/autostatus');
-const { handleSsCommand } = require('./commands/ss');
 const { handleTranslateCommand } = require('./commands/translate');
 const aiCommand = require('./commands/ai');
 const urlCommand = require('./commands/url');
@@ -66,8 +63,8 @@ const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
 const sudoCommand = require('./commands/sudo');
 const { piesCommand, piesAlias } = require('./commands/pies');
-const soraCommand = require('./commands/sora');
 
+const imageCommand = require('./commands/image');
 // Global settings
 global.packname = settings.packname;
 global.author = settings.author;
@@ -241,7 +238,7 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
 
         // List of owner commands
-        const ownerCommands = ['.mode', '.autostatus', '.antidelete', '.setpp', '.areact', '.autoread', '.pmblocker'];
+        const ownerCommands = ['.mode', '.antidelete', '.setpp', '.areact', '.autoread'];
         const isOwnerCommand = ownerCommands.some(cmd => userMessage.startsWith(cmd));
 
         
@@ -320,13 +317,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     await sock.sendMessage(chatId, { text: 'Failed to update bot access mode', ...channelInfo });
                 }
                 break;
-            case userMessage.startsWith('.pmblocker'):
-                {
-                    const args = userMessage.split(' ').slice(1).join(' ');
-                    await pmblockerCommand(sock, chatId, message, args);
-                }
-                commandExecuted = true;
-                break;
 
             case userMessage === '.china':
                 await piesAlias(sock, chatId, message, 'china');
@@ -360,11 +350,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await pingCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
-            case userMessage === '.jid':
-                const groupJid = message.key.remoteJid;
-                await sock.sendMessage(chatId, { text: '📱 *JID:* ' + groupJid }, { quoted: message });
-                commandExecuted = true;
-                break;
 
             case userMessage === '.staff':
                 await staffCommand(sock, chatId, message);
@@ -380,10 +365,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage.startsWith('.url'):
                 await urlCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
-            case userMessage.startsWith('.ss'):
-                await handleSsCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.gif'):
@@ -410,10 +391,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 }
                 commandExecuted = true;
                 break;
-            case userMessage.startsWith('.sora'):
-                await soraCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
             // ===== AI COMMANDS =====
             case userMessage.startsWith('.gpt'):
             case userMessage.startsWith('.gemini'):
@@ -421,14 +398,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 await aiCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
-            // ===== OWNER COMMANDS =====
-            case userMessage.startsWith('.autostatus'):
-                {
-                    const args = userMessage.split(' ').slice(1).join(' ');
-                    await autoStatusCommand(sock, chatId, message, args);
-                }
+            case userMessage.startsWith('.image'):
+                await imageCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
+            // ===== OWNER COMMANDS =====
             case userMessage.startsWith('.antidelete'):
                 {
                     const args = userMessage.split(' ').slice(1).join(' ');
@@ -465,23 +439,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
         }
 
-
-        // Function to handle .groupjid command
-        async function groupJidCommand(sock, chatId, message) {
-            const groupJid = message.key.remoteJid;
-
-            if (!groupJid.endsWith('@g.us')) {
-                return await sock.sendMessage(chatId, {
-                    text: "❌ This command can only be used in a group."
-                });
-            }
-
-            await sock.sendMessage(chatId, {
-                text: `✅ Group JID: ${groupJid}`
-            }, {
-                quoted: message
-            });
-        }
 
         if (userMessage.startsWith('.')) {
             // After command is processed successfully
