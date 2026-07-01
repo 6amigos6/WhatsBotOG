@@ -103,8 +103,8 @@ function startBot(token) {
       case "ai_service_gpt":
         await showAIService(chatId, "gpt")
         break
-      case "ai_service_gemini":
-        await showAIService(chatId, "gemini")
+      case "ai_service_openrouter":
+        await showAIService(chatId, "openrouter")
         break
       case "ai_service_imagine":
         await showAIService(chatId, "imagine")
@@ -120,10 +120,10 @@ function startBot(token) {
         const aiKeyMsgGpt = await bot.sendMessage(chatId, "🤖 *GPT API Key*\n\nSend your OpenAI API key for GPT.\n\nExample: `sk-xxxxxxxxxxxxxxxx`", { parse_mode: "Markdown" })
         userStates[chatId].msgId = aiKeyMsgGpt.message_id
         break
-      case "ai_setkey_gemini":
-        userStates[chatId] = { action: "ai_setkey", service: "gemini" }
-        const aiKeyMsgGemini = await bot.sendMessage(chatId, "🤖 *Gemini API Key*\n\nSend your Google Gemini API key.\n\nExample: `AIxxxxxxxxxxxxxxxx`", { parse_mode: "Markdown" })
-        userStates[chatId].msgId = aiKeyMsgGemini.message_id
+      case "ai_setkey_openrouter":
+        userStates[chatId] = { action: "ai_setkey", service: "openrouter" }
+        const aiKeyMsgOR = await bot.sendMessage(chatId, "🌐 *OpenRouter API Key*\n\nSend your OpenRouter API key.\n\nGet a free key at: https://openrouter.ai/keys\n\nExample: `sk-or-v1-xxxxxxxxxxxxxxxx`", { parse_mode: "Markdown" })
+        userStates[chatId].msgId = aiKeyMsgOR.message_id
         break
       case "ai_setkey_imagine":
         userStates[chatId] = { action: "ai_setkey", service: "imagine" }
@@ -139,9 +139,9 @@ function startBot(token) {
         ai.deleteKey("gpt")
         await showAIService(chatId, "gpt")
         break
-      case "ai_delete_gemini":
-        ai.deleteKey("gemini")
-        await showAIService(chatId, "gemini")
+      case "ai_delete_openrouter":
+        ai.deleteKey("openrouter")
+        await showAIService(chatId, "openrouter")
         break
       case "ai_delete_imagine":
         ai.deleteKey("imagine")
@@ -154,8 +154,8 @@ function startBot(token) {
       case "ai_toggle_gpt":
         { const svc = ai.getAllServices().find(s => s.name === "gpt"); ai.setEnabled("gpt", !svc?.enabled); await showAIService(chatId, "gpt"); }
         break
-      case "ai_toggle_gemini":
-        { const svc = ai.getAllServices().find(s => s.name === "gemini"); ai.setEnabled("gemini", !svc?.enabled); await showAIService(chatId, "gemini"); }
+      case "ai_toggle_openrouter":
+        { const svc = ai.getAllServices().find(s => s.name === "openrouter"); ai.setEnabled("openrouter", !svc?.enabled); await showAIService(chatId, "openrouter"); }
         break
       case "ai_toggle_imagine":
         { const svc = ai.getAllServices().find(s => s.name === "imagine"); ai.setEnabled("imagine", !svc?.enabled); await showAIService(chatId, "imagine"); }
@@ -663,7 +663,7 @@ async function showAIManagement(chatId) {
 async function showAIKeySelection(chatId) {
   const keyboard = [
     [{ text: "GPT", callback_data: "ai_setkey_gpt" }],
-    [{ text: "Gemini", callback_data: "ai_setkey_gemini" }],
+    [{ text: "OpenRouter", callback_data: "ai_setkey_openrouter" }],
     [{ text: "Imagine", callback_data: "ai_setkey_imagine" }],
     [{ text: "Image", callback_data: "ai_setkey_image" }],
     [{ text: "🔙 Back", callback_data: "ai_management" }]

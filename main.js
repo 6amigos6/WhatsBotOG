@@ -58,6 +58,7 @@ const { anticallCommand, readState: readAnticallState } = require('./commands/an
 const { handleAntideleteCommand, handleMessageRevocation, storeMessage } = require('./commands/antidelete');
 const { handleTranslateCommand } = require('./commands/translate');
 const aiCommand = require('./commands/ai');
+const openCommand = require('./commands/open');
 const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
@@ -393,8 +394,11 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             // ===== AI COMMANDS =====
             case userMessage.startsWith('.gpt'):
-            case userMessage.startsWith('.gemini'):
                 await aiCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage.startsWith('.open'):
+                await openCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage.startsWith('.image'):

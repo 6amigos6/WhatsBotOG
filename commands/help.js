@@ -29,7 +29,7 @@ async function helpCommand(sock, chatId, message) {
 「 🤖 AI 」
 ╭──────────────
 │ ✦ .gpt
-│ ✦ .gemini
+│ ✦ .open
 │ ✦ .imagine
 │ ✦ .image
 ╰──────────────
