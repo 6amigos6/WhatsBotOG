@@ -394,7 +394,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             // ===== AI COMMANDS =====
             case userMessage.startsWith('.gpt'):
             case userMessage.startsWith('.gemini'):
-            case userMessage.startsWith('.flux'):
                 await aiCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;

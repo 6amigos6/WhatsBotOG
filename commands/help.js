@@ -31,7 +31,6 @@ async function helpCommand(sock, chatId, message) {
 │ ✦ .gpt
 │ ✦ .gemini
 │ ✦ .imagine
-│ ✦ .flux
 │ ✦ .image
 ╰──────────────
 
