@@ -109,13 +109,42 @@ async function sendStatusItem(sock, chatId, st, phone) {
 }
 
 function getUniqueContacts(phone) {
-    const groups = {}; // key → { name, jid, statuses: [], seenIds: Set }
+    const groups = {};
+    const now = Date.now();
+    const STATUS_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 
     // Source: status.json only (has proper sender JIDs + media objects)
     const stored = wa.getStoredStatuses(phone);
+
+    // Filter active statuses and collect expired ones for cleanup
+    const activeStatuses = [];
+    const expiredIds = [];
     for (const st of stored.statuses) {
+        const age = now - (st.time || 0);
+        if (age < STATUS_EXPIRY) {
+            activeStatuses.push(st);
+        } else {
+            expiredIds.push(st.id);
+        }
+    }
+
+    // Clean up expired statuses from storage (if any found)
+    if (expiredIds.length > 0) {
+        try {
+            const fs = require('fs-extra');
+            const path = require('path');
+            const filePath = path.join(__dirname, '..', 'sessions', phone, 'status.json');
+            stored.statuses = stored.statuses.filter(s => !expiredIds.includes(s.id));
+            fs.writeFileSync(filePath, JSON.stringify(stored, null, 2));
+            console.log('[Status] Cleaned', expiredIds.length, 'expired status(es)');
+        } catch (e) {
+            console.log('[Status] Cleanup error:', e.message);
+        }
+    }
+
+    // Group active statuses by sender
+    for (const st of activeStatuses) {
         const key = normalizeJid(st.from);
-        // Skip invalid senders (status@broadcast, unknown, empty)
         if (!key) continue;
 
         if (!groups[key]) {
