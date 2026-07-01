@@ -74,7 +74,7 @@ function storeStatus(phone, statusMsg) {
     
     data.statuses.push({
       id: statusMsg.key.id,
-      from: statusMsg.key.participant || statusMsg.key.remoteJid,
+      from: statusMsg.key.participant || '',
       type: type,
       content: content,
       mediaUrl: mediaUrl,
