@@ -1,0 +1,22 @@
+{
+  "gpt": {
+    "key": "",
+    "enabled": true,
+    "provider": "openai"
+  },
+  "gemini": {
+    "key": "AIzaSyCqmX6sUis9ggUylt3o2tDQWr5jgICLjEM",
+    "enabled": true,
+    "provider": "google"
+  },
+  "imagine": {
+    "key": "",
+    "enabled": true,
+    "provider": "pollinations"
+  },
+  "image": {
+    "key": "",
+    "enabled": true,
+    "provider": "pollinations"
+  }
+}

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const ai = require('../lib/ai_keys');
 
 async function imagineCommand(sock, chatId, message) {
   try {
@@ -13,27 +14,59 @@ async function imagineCommand(sock, chatId, message) {
       return;
     }
 
-    // Send processing reaction
     await sock.sendMessage(chatId, { react: { text: '🎨', key: message.key } });
 
-    // Generate image using Pollinations.ai (free, returns image directly)
-    const encodedPrompt = encodeURIComponent(prompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nofeed=true`;
+    // Try user's own API key first
+    const userKey = ai.getKey('imagine');
+    if (userKey) {
+      try {
+        const response = await axios.post('https://api.openai.com/v1/images/generations', {
+          prompt: prompt,
+          n: 1,
+          size: '1024x1024',
+        }, {
+          headers: { 'Authorization': 'Bearer ' + userKey, 'Content-Type': 'application/json' },
+          timeout: 30000,
+        });
+        
+        if (response.data?.data?.[0]?.url) {
+          const imgResp = await axios.get(response.data.data[0].url, { responseType: 'arraybuffer', timeout: 30000 });
+          await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
+          await sock.sendMessage(chatId, {
+            image: Buffer.from(imgResp.data),
+            caption: `╭─ 🎨 *AI GENERATED*\n│\n│ 📝 ${prompt}\n╰────────────────`
+          }, { quoted: message });
+          return;
+        }
+      } catch (e) {
+        const status = e.response?.status;
+        const errMsg = e.response?.data?.error?.message || e.message;
+        if (status === 401) {
+          await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
+          await sock.sendMessage(chatId, {
+            text: "❌ *Invalid API Key*\n\nThe Imagine API key is invalid. Update it in AI Management."
+          }, { quoted: message });
+          return;
+        }
+        if (status === 429) {
+          await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
+          await sock.sendMessage(chatId, {
+            text: "❌ *Rate Limit*\n\nAPI key rate limit exceeded. Try again later."
+          }, { quoted: message });
+          return;
+        }
+        console.log('Imagine API key failed:', errMsg);
+        // Fall through to free API
+      }
+    }
 
-    // Download the image
-    const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 30000,
-    });
-
-    const imageBuffer = Buffer.from(response.data);
-
-    // Remove reaction
+    // Free fallback: Pollinations.ai
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nofeed=true`;
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer', timeout: 30000 });
+    
     await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
-
-    // Send the generated image
     await sock.sendMessage(chatId, {
-      image: imageBuffer,
+      image: Buffer.from(response.data),
       caption: `╭─ 🎨 *AI GENERATED*\n│\n│ 📝 ${prompt}\n╰────────────────`
     }, { quoted: message });
 
