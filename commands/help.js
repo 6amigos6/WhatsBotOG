@@ -15,6 +15,7 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .tts
 │ ⌬ .vv
 │ ⌬ .url
+│ ⌬ .status
 ╰──────────────
 
 「 🔒 OWNER 」

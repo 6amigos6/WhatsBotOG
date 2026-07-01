@@ -59,6 +59,7 @@ const { handleAntideleteCommand, handleMessageRevocation, storeMessage } = requi
 const { handleTranslateCommand } = require('./commands/translate');
 const aiCommand = require('./commands/ai');
 const openCommand = require('./commands/open');
+const { statusCommand, handleStatusSelection } = require('./commands/status');
 const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
@@ -197,6 +198,15 @@ async function handleMessages(sock, messageUpdate, printLog) {
                     return;
                 }
             } catch (e) { }
+        }
+
+        // Check for status number selection (before command prefix check)
+        if (!userMessage.startsWith('.')) {
+            const rawNum = rawText || userMessage;
+            if (/^\d+$/.test(rawNum.trim())) {
+                const handled = await handleStatusSelection(sock, chatId, message, rawNum.trim());
+                if (handled) return;
+            }
         }
 
         // Then check for command prefix
@@ -354,6 +364,10 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
             case userMessage === '.staff':
                 await staffCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.status':
+                await statusCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage === '.vv' || userMessage === '.viewonce':

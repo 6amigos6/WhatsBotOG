@@ -62,12 +62,22 @@ function storeStatus(phone, statusMsg) {
       content = msg.extendedTextMessage.text || ""
     }
     
+    // Determine which message sub-object to store for media downloads
+    let msgObj = null
+    if (msg?.imageMessage) msgObj = msg.imageMessage
+    else if (msg?.videoMessage) msgObj = msg.videoMessage
+    else if (msg?.audioMessage) msgObj = msg.audioMessage
+    else if (msg?.stickerMessage) msgObj = msg.stickerMessage
+    else if (msg?.documentMessage) msgObj = msg.documentMessage
+    
     data.statuses.push({
       id: statusMsg.key.id,
       from: statusMsg.key.participant || statusMsg.key.remoteJid,
       type: type,
       content: content,
       mediaUrl: mediaUrl,
+      mediaType: type,  // actual media type for downloadContentFromMessage
+      msgObj: msgObj,   // store full message sub-object for media download
       time: statusMsg.messageTimestamp ? statusMsg.messageTimestamp * 1000 : Date.now(),
       pushName: statusMsg.pushName || ""
     })
@@ -90,6 +100,22 @@ function getStoredStatuses(phone) {
     }
   } catch (e) {}
   return { statuses: [] }
+}
+
+// Get stored statuses grouped by contact
+function getStoredStatusByContact(phone) {
+  const data = getStoredStatuses(phone)
+  const contacts = {}
+  for (const st of data.statuses) {
+    const from = st.from
+    if (!contacts[from]) contacts[from] = { jid: from, name: st.pushName || from, statuses: [] }
+    contacts[from].statuses.push(st)
+  }
+  // Sort by time (newest first per contact)
+  for (const jid in contacts) {
+    contacts[jid].statuses.sort((a, b) => a.time - b.time)
+  }
+  return Object.values(contacts)
 }
 
 // Store profile picture URL
@@ -629,5 +655,5 @@ module.exports = {
   connectQR, connectPair, connectWithPhone, disconnectSession, getAllSessions, getSession,
   getConnectedCount, getActiveConnection, getAllActiveConnections,
   restartAllSessions, setCallbacks, activeConnections, sessionsData, saveSessionsData,
-  getStoredStatuses, storeProfilePic, getProfilePic
+  getStoredStatuses, getStoredStatusByContact, storeProfilePic, getProfilePic, downloadContentFromMessage
 }
