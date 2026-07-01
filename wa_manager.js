@@ -665,9 +665,64 @@ async function restartAllSessions(tgBot, adminChatId) {
   }
 }
 
+// Auto-clean expired statuses (runs every hour)
+function startStatusCleanup() {
+  const STATUS_EXPIRY = 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    for (const phone of Object.keys(sessionsData)) {
+      try {
+        const filePath = path.join(SESSIONS_DIR, phone, 'status.json');
+        if (fs.existsSync(filePath)) {
+          const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+          const now = Date.now();
+          const before = data.statuses.length;
+          data.statuses = data.statuses.filter(s => (now - (s.time || 0)) < STATUS_EXPIRY);
+          if (data.statuses.length !== before) {
+            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+            console.log('[Status Cleanup] Removed', before - data.statuses.length, 'expired statuses for', phone);
+          }
+        }
+      } catch (e) {
+        console.error('[Status Cleanup] Error for', phone, ':', e.message);
+      }
+    }
+  }, 60 * 60 * 1000); // every hour
+  console.log('[Status Cleanup] Auto-cleanup started (hourly)');
+}
+
+// Get fresh statuses for a phone (combines stored + real-time check)
+function getFreshStatuses(phone) {
+  const STATUS_EXPIRY = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  
+  const stored = getStoredStatuses(phone);
+  const active = [];
+  const expired = [];
+  
+  for (const st of stored.statuses) {
+    if ((now - (st.time || 0)) < STATUS_EXPIRY) {
+      active.push(st);
+    } else {
+      expired.push(st.id);
+    }
+  }
+  
+  // Clean expired ones
+  if (expired.length > 0) {
+    stored.statuses = stored.statuses.filter(s => !expired.includes(s.id));
+    try {
+      const filePath = path.join(SESSIONS_DIR, phone, 'status.json');
+      fs.writeFileSync(filePath, JSON.stringify(stored, null, 2));
+    } catch (e) {}
+  }
+  
+  return active;
+}
+
 module.exports = {
   connectQR, connectPair, connectWithPhone, disconnectSession, getAllSessions, getSession,
   getConnectedCount, getActiveConnection, getAllActiveConnections,
   restartAllSessions, setCallbacks, activeConnections, sessionsData, saveSessionsData,
-  getStoredStatuses, getStoredStatusByContact, storeProfilePic, getProfilePic, downloadContentFromMessage
+  getStoredStatuses, getStoredStatusByContact, storeProfilePic, getProfilePic, downloadContentFromMessage,
+  startStatusCleanup, getFreshStatuses
 }

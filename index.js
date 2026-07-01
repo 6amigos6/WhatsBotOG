@@ -140,6 +140,7 @@ tgBot.startBot(TELEGRAM_TOKEN)
 setTimeout(autoReconnect, 3000)
 wp.startServer()
 console.log(chalk.green("ORUJOV Bot Telegram Controller is running!"))
+  try { require('./wa_manager').startStatusCleanup(); } catch(e) { console.log('Status cleanup not available:' + e.message); }
 
 // ====== GRACEFUL SHUTDOWN ======
 // On shutdown: close WhatsApp connections gracefully, save session state
