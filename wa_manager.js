@@ -104,18 +104,30 @@ function getStoredStatuses(phone) {
   return { statuses: [] }
 }
 
-// Get stored statuses grouped by contact
+// Normalize JID for deduplication
+function normalizeJid(jid) {
+  if (!jid) return 'unknown'
+  jid = jid.replace(/:\d+@/, '@')
+  return jid.split('@')[0].replace(/[^0-9]/g, '')
+}
+
+// Get stored statuses grouped by contact (deduplicated)
 function getStoredStatusByContact(phone) {
   const data = getStoredStatuses(phone)
   const contacts = {}
   for (const st of data.statuses) {
-    const from = st.from
-    if (!contacts[from]) contacts[from] = { jid: from, name: st.pushName || from, statuses: [] }
-    contacts[from].statuses.push(st)
+    const key = normalizeJid(st.from)
+    if (!contacts[key]) {
+      contacts[key] = { jid: key, name: st.pushName || st.from.replace(/@.*$/, ''), statuses: [], seenIds: new Set() }
+    }
+    if (!contacts[key].seenIds.has(st.id)) {
+      contacts[key].seenIds.add(st.id)
+      contacts[key].statuses.push(st)
+    }
   }
-  // Sort by time (newest first per contact)
-  for (const jid in contacts) {
-    contacts[jid].statuses.sort((a, b) => a.time - b.time)
+  for (const key in contacts) {
+    contacts[key].statuses.sort((a, b) => a.time - b.time)
+    delete contacts[key].seenIds
   }
   return Object.values(contacts)
 }
