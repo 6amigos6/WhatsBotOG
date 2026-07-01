@@ -564,7 +564,9 @@ async function requestPairingCodeWithRetry(sock, phone, tgBot, chatId, maxRetrie
           { parse_mode: "Markdown" }
         )
         if (activeConnections[phone]) { activeConnections[phone].end(new Error("Pair failed")); delete activeConnections[phone] }
-        delete sessionsData[phone]; saveSessionsData()
+        // Keep session data if it existed (don't break existing sessions)
+        if (sessionsData[phone]) sessionsData[phone].status = "disconnected";
+        saveSessionsData()
         return
       }
 

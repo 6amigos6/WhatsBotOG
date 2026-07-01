@@ -24,6 +24,8 @@ if (!TELEGRAM_TOKEN) {
 
 
 // Auto-reconnect to previously connected WhatsApp sessions on startup
+// This preserves sessions across restarts, updates, and redeploys
+// Session data is only deleted on explicit user logout
 async function autoReconnect() {
   const wa = require('./wa_manager')
   const sessionsData = wa.sessionsData || {}
@@ -139,5 +141,35 @@ setTimeout(autoReconnect, 3000)
 wp.startServer()
 console.log(chalk.green("ORUJOV Bot Telegram Controller is running!"))
 
-process.on("uncaughtException", (err) => console.error("❌ Uncaught Exception:", err))
-process.on("unhandledRejection", (err) => console.error("❌ Unhandled Rejection:", err))
+// ====== GRACEFUL SHUTDOWN ======
+// On shutdown: close WhatsApp connections gracefully, save session state
+async function gracefulShutdown(signal) {
+  console.log("\n🛑 Received " + signal + ", shutting down gracefully...");
+  try {
+    const wa = require("./wa_manager");
+    // Save session state before exit
+    wa.saveSessionsData();
+    // Close all active connections gracefully
+    for (const [phone, sock] of Object.entries(wa.activeConnections || {})) {
+      try {
+        await sock?.logout?.();
+        sock?.end(new Error("Shutdown"));
+        console.log("  Closed connection for +" + phone);
+      } catch (e) {}
+    }
+  } catch (e) {}
+  console.log("👋 Goodbye!");
+  process.exit(0);
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGQUIT", () => gracefulShutdown("SIGQUIT"));
+
+process.on("uncaughtException", (err) => {
+  console.error("❌ Uncaught Exception:", err.message);
+  // Don't exit on uncaught exceptions - let the process recover
+});
+process.on("unhandledRejection", (err) => {
+  console.error("❌ Unhandled Rejection:", err?.message || err);
+});
