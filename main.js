@@ -43,7 +43,6 @@ const { autoreadCommand, isAutoreadEnabled, handleAutoread } = require('./comman
 const ttsCommand = require('./commands/tts');
 const instagramCommand = require('./commands/instagram');
 const spotifyCommand = require('./commands/spotify');
-const playCommand = require('./commands/play');
 const tiktokCommand = require('./commands/tiktok');
 const { replyCommand, handleAutoDownload, isReplyEnabled } = require('./commands/reply');
 // removed
@@ -121,17 +120,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
         if (message.message?.buttonsResponseMessage) {
             const buttonId = message.message.buttonsResponseMessage.selectedButtonId;
             const chatId = message.key.remoteJid;
-
-            if (buttonId === 'yt_audio') {
-                const target = global._ytDownloadTarget;
-                if (target && target.chatId === chatId && target.url) {
-                    message.message.extendedTextMessage = { text: `.play ${target.url}` };
-                    const playCmd = require("./commands/play");
-                    await playCmd(sock, chatId, message);
-                    delete global._ytDownloadTarget;
-                }
-                return;
-            }
 
             if (buttonId === 'channel') {
                 await sock.sendMessage(chatId, {
@@ -236,15 +224,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
             if (tkPattern.test(rawMsg)) {
                 const tiktokCommand = require('./commands/tiktok');
                 await tiktokCommand(sock, chatId, message);
-                return;
-            }
-
-            if (ytPattern.test(rawMsg)) {
-                if (!isReplyEnabled()) {
-                    message.message.extendedTextMessage = { text: ".play " + rawMsg.match(ytPattern)[0] };
-                    const playCmd = require("./commands/play");
-                    await playCmd(sock, chatId, message);
-                }
                 return;
             }
 

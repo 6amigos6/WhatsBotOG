@@ -41,7 +41,6 @@ async function helpCommand(sock, chatId, message) {
 
 「 📥 DOWNLOAD 」
 ╭──────────────
-│ 🎵 .play <song>
 │ 📥 .reply [on/off]
 │ 📺 YouTube → Send Link
 │ 📸 Instagram → Send Link
