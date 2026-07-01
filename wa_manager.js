@@ -70,6 +70,8 @@ function storeStatus(phone, statusMsg) {
     else if (msg?.stickerMessage) msgObj = msg.stickerMessage
     else if (msg?.documentMessage) msgObj = msg.documentMessage
     
+    console.log('[Status] Stored status from', statusMsg.key.participant || 'unknown', 'type:', type)
+    
     data.statuses.push({
       id: statusMsg.key.id,
       from: statusMsg.key.participant || statusMsg.key.remoteJid,
