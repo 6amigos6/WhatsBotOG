@@ -36,3 +36,6 @@ data/messageCount.json
 data/autoread.json
 data/autoStatus.json
 data/antidelete_store.json
+
+# AI Keys (sensitive)
+data/ai_keys.json
