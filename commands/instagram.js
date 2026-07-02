@@ -204,6 +204,7 @@ async function instagramCommand(sock, chatId, message) {
 }
 
 
+
 async function ensureVideoCompatible(buffer) {
   const { spawnSync } = require('child_process');
   const fs = require('fs');
@@ -217,9 +218,22 @@ async function ensureVideoCompatible(buffer) {
   try {
     fs.writeFileSync(tmpIn, buffer);
     
-    // Re-mux to H.264/AAC in MP4 with faststart for WhatsApp compatibility
-    // Using -c copy first (fast) to avoid re-encoding if already compatible
-    const result = spawnSync('ffmpeg', [
+    // Strategy 1: Fast re-mux (copy streams, fix moov atom) - takes <1 second
+    // Most Instagram videos are already H.264/AAC, they just need faststart
+    const remux = spawnSync('ffmpeg', [
+      '-y', '-i', tmpIn,
+      '-c', 'copy',
+      '-movflags', '+faststart',
+      tmpOut
+    ], { timeout: 15000 });
+    
+    if (remux.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
+      return fs.readFileSync(tmpOut);
+    }
+    
+    // Strategy 2: Full re-encode to H.264/AAC for WhatsApp compatibility
+    // Needed for VP9/HEVC/AV1 videos or unusual pixel formats
+    const reEncode = spawnSync('ffmpeg', [
       '-y', '-i', tmpIn,
       '-c:v', 'libx264',
       '-c:a', 'aac',
@@ -228,15 +242,15 @@ async function ensureVideoCompatible(buffer) {
       '-preset', 'fast',
       '-crf', '23',
       tmpOut
-    ], { timeout: 30000 });
+    ], { timeout: 45000 });
     
-    if (result.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
-      const reEncoded = fs.readFileSync(tmpOut);
-      return reEncoded;
+    if (reEncode.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
+      return fs.readFileSync(tmpOut);
     }
+    
     return buffer;
   } catch (e) {
-    console.error('[IG] Video remux error:', e.message);
+    console.error('[IG] Video conversion error:', e.message);
     return buffer;
   } finally {
     try { fs.unlinkSync(tmpIn); } catch {}
@@ -256,8 +270,8 @@ async function reEncodeVideo(url) {
   const tmpOut = path.join(tmpdir(), Crypto.randomBytes(6).readUIntLE(0, 6).toString(36) + '.mp4');
   
   try {
-    // Download to temp file
-    const res = await axios({ url, responseType: 'stream', timeout: 45000 });
+    // Download to temp file via stream
+    const res = await axios({ url, responseType: 'stream', timeout: 60000 });
     const writer = fs.createWriteStream(tmpIn);
     res.data.pipe(writer);
     await new Promise((resolve, reject) => {
@@ -265,8 +279,22 @@ async function reEncodeVideo(url) {
       writer.on('error', reject);
     });
     
-    // Re-encode
-    const result = spawnSync('ffmpeg', [
+    if (!fs.existsSync(tmpIn) || fs.statSync(tmpIn).size < 100) return null;
+    
+    // Try fast re-mux first
+    const remux = spawnSync('ffmpeg', [
+      '-y', '-i', tmpIn,
+      '-c', 'copy',
+      '-movflags', '+faststart',
+      tmpOut
+    ], { timeout: 15000 });
+    
+    if (remux.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
+      return fs.readFileSync(tmpOut);
+    }
+    
+    // Full re-encode as fallback
+    const reEncode = spawnSync('ffmpeg', [
       '-y', '-i', tmpIn,
       '-c:v', 'libx264',
       '-c:a', 'aac',
@@ -277,9 +305,8 @@ async function reEncodeVideo(url) {
       tmpOut
     ], { timeout: 60000 });
     
-    if (result.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
-      const buf = fs.readFileSync(tmpOut);
-      return buf;
+    if (reEncode.status === 0 && fs.existsSync(tmpOut) && fs.statSync(tmpOut).size > 1000) {
+      return fs.readFileSync(tmpOut);
     }
     return null;
   } catch (e) {
@@ -290,5 +317,4 @@ async function reEncodeVideo(url) {
     try { fs.unlinkSync(tmpOut); } catch {}
   }
 }
-
 module.exports = instagramCommand;
