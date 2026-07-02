@@ -62,7 +62,6 @@ const openCommand = require('./commands/open');
 const { statusCommand, handleStatusSelection } = require('./commands/status');
 const pdfCommand = require('./commands/pdf');
 const docxCommand = require('./commands/docx');
-const stickerCommand = require('./commands/sticker');
 const { compressCommand, handleCompressSelection } = require('./commands/compress');
 const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
@@ -382,10 +381,6 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage === '.docx':
                 await docxCommand(sock, chatId, message);
-                commandExecuted = true;
-                break;
-            case userMessage === '.sticker':
-                await stickerCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage === '.compress':

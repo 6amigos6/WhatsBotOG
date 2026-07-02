@@ -18,7 +18,6 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .status
 │ ⌬ .pdf
 │ ⌬ .docx
-│ ⌬ .sticker
 │ ⌬ .compress
 ╰──────────────
 
