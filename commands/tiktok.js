@@ -176,7 +176,7 @@ async function tiktokCommand(sock, chatId, message) {
     if (!url || !isValidTikTokUrl(url)) {
       if (/^\.(tiktok|tt)\b/i.test(text.trim())) {
         return await sock.sendMessage(chatId, {
-          text: '❌ Usage: .tiktok <link>\n📝 Example: .tiktok https://vm.tiktok.com/xxxxxx/'
+          text: '❌ Please send a valid media link.'
         }, { quoted: message });
       }
       return;
@@ -230,7 +230,7 @@ async function tiktokCommand(sock, chatId, message) {
     }
 
     if (!result?.videoUrl) {
-      console.error(`All TikTok APIs failed: ${errors.join(' | ')}`);
+      console.error(`All download methods failed for TikTok`);
       return await sock.sendMessage(chatId, {
         text: '❌ Download unavailable. The video may be private or restricted.'
       }, { quoted: message });

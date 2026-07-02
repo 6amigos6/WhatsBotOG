@@ -59,7 +59,7 @@ async function pdfCommand(sock, chatId, message) {
     } catch (error) {
         console.error('[PDF] Error:', error.message);
         await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
-        try { await sock.sendMessage(chatId, { text: '❌ PDF conversion failed: ' + error.message }, { quoted: message }); } catch {}
+        try { await sock.sendMessage(chatId, { text: '❌ PDF conversion failed. Please try again.' }, { quoted: message }); } catch {}
     }
 }
 

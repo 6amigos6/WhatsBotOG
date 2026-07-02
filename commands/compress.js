@@ -69,7 +69,7 @@ async function compressCommand(sock, chatId, message) {
         console.error('[Compress] Error:', error.message);
         await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
         delete compressStates[chatId];
-        try { await sock.sendMessage(chatId, { text: '❌ Compression failed: ' + error.message }, { quoted: message }); } catch {}
+        try { await sock.sendMessage(chatId, { text: '❌ Compression failed. Please try again.' }, { quoted: message }); } catch {}
     }
 }
 

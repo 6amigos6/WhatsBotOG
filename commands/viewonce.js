@@ -80,7 +80,7 @@ async function viewonceCommand(sock, chatId, message) {
         console.error('ViewOnce error:', err.message);
         // Only show error if we haven't sent anything
         try {
-            await sock.sendMessage(chatId, { text: 'Error: ' + err.message }, { quoted: message });
+            await sock.sendMessage(chatId, { text: '❌ An error occurred. Please try again.' }, { quoted: message });
         } catch(e) {}
     }
 }

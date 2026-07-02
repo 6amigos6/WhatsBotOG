@@ -57,7 +57,7 @@ async function docxCommand(sock, chatId, message) {
     } catch (error) {
         console.error('[DOCX] Error:', error.message);
         await sock.sendMessage(chatId, { react: { text: '', key: message.key } });
-        try { await sock.sendMessage(chatId, { text: '❌ DOCX conversion failed: ' + error.message }, { quoted: message }); } catch {}
+        try { await sock.sendMessage(chatId, { text: '❌ DOCX conversion failed. Please try again.' }, { quoted: message }); } catch {}
     }
 }
 
