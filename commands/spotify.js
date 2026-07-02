@@ -30,7 +30,7 @@ async function spotifyCommand(sock, chatId, message) {
             return;
         }
 
-        const caption = (`🎵 ${r.title || r.name || 'Unknown Title'}\n👤 ${r.artist || ''}\n⏱ ${r.duration || ''}\n🔗 ${r.url || ''}` + '\n\nDOWNLOADED BY ORUJOV').trim()
+        const caption = (`🎵 ${r.title || r.name || 'Unknown Title'}\n👤 ${r.artist || ''}\n⏱ ${r.duration || ''}\n🔗 ${r.url || ''}` + '\n\n⬇️ Downloaded by Gasham').trim()
 
          // Send cover and info as a follow-up (optional)
          if (r.thumbnails) {

@@ -274,7 +274,7 @@ async function showMainMenu(chatId) {
   }
   // Fallback if no image or sendPhoto failed
   await bot.sendMessage(chatId,
-    "*ORUJOV Bot Controller*\n\nSelect an option:",
+    "*GASHAM Bot Controller*\n\nSelect an option:",
     {
       parse_mode: "Markdown",
       reply_markup: {

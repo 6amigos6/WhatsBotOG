@@ -98,7 +98,7 @@ async function downloadYouTube(sock, chatId, url) {
       audio: { url: tempFilePath },
       mimetype: 'audio/mp4',
       fileName: `youtube_audio_${Date.now()}.m4a`,
-      caption: 'Downloaded By Orujov'
+      caption: '⬇️ Downloaded by Gasham'
     });
 
     // Cleanup
@@ -131,7 +131,7 @@ async function downloadYouTube(sock, chatId, url) {
         if (buf.length > 1000) {
           await sock.sendMessage(chatId, {
             audio: buf, mimetype: 'audio/mp4',
-            caption: 'Downloaded By Orujov'
+            caption: '⬇️ Downloaded by Gasham'
           });
           console.log(`✅ YT audio (fallback): ${(buf.length/1024/1024).toFixed(2)}MB`);
           return true;

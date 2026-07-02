@@ -1,10 +1,10 @@
 require('dotenv').config();
 
 const settings = {
-  packname: 'ORUJOV',
+  packname: 'GASHAM',
   author: '‎',
-  botName: "ORUJOV",
-  botOwner: 'ORUJOV',
+  botName: "GASHAM",
+  botOwner: 'GASHAM',
   ownerNumber: process.env.OWNER_NUMBER || '994501234567',
   giphyApiKey: 'qnl7ssQChTdPjsKta2Ax2LMaGXz303tq',
   commandMode: "public",

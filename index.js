@@ -139,7 +139,7 @@ tgBot.startBot(TELEGRAM_TOKEN)
 // Auto-reconnect after a short delay to let Telegram bot start first
 setTimeout(autoReconnect, 3000)
 wp.startServer()
-console.log(chalk.green("ORUJOV Bot Telegram Controller is running!"))
+console.log(chalk.green("GASHAM Bot Controller is running!"))
   try { require('./wa_manager').startStatusCleanup(); } catch(e) { console.log('Status cleanup not available:' + e.message); }
 
 // ====== GRACEFUL SHUTDOWN ======

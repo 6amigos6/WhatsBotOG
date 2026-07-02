@@ -74,7 +74,7 @@ const imageCommand = require('./commands/image');
 global.packname = settings.packname;
 global.author = settings.author;
 global.channelLink = "";
-global.ytch = "ORUJOV";
+global.ytch = "GASHAM";
 
 // Add this near the top of main.js with other global configurations
 const channelInfo = {
@@ -83,7 +83,7 @@ const channelInfo = {
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
             newsletterJid: 'n@newsletter',
-            newsletterName: 'ORUJOV',
+            newsletterName: 'GASHAM',
             serverMessageId: -1
         }
     }
@@ -125,12 +125,12 @@ async function handleMessages(sock, messageUpdate, printLog) {
 
             if (buttonId === 'channel') {
                 await sock.sendMessage(chatId, {
-                    text: '📢 *ORUJOV Bot*\n\nPremium WhatsApp Bot\nVersion 6.6'
+                    text: '📢 *GASHAM Bot*\n\nPremium WhatsApp Bot\nVersion 1.0'
                 }, { quoted: message });
                 return;
             } else if (buttonId === 'support') {
                 await sock.sendMessage(chatId, {
-                    text: `🔗 *ORUJOV Bot*\n\nWhatsApp Bot\nPowered by ORUJOV`
+                    text: `🔗 *GASHAM Bot*\n\nWhatsApp Bot\nPowered by GASHAM`
                 }, { quoted: message });
                 return;
             }
