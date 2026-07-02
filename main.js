@@ -60,6 +60,10 @@ const { handleTranslateCommand } = require('./commands/translate');
 const aiCommand = require('./commands/ai');
 const openCommand = require('./commands/open');
 const { statusCommand, handleStatusSelection } = require('./commands/status');
+const pdfCommand = require('./commands/pdf');
+const docxCommand = require('./commands/docx');
+const stickerCommand = require('./commands/sticker');
+const { compressCommand, handleCompressSelection } = require('./commands/compress');
 const urlCommand = require('./commands/url');
 const { addCommandReaction, handleAreactCommand } = require('./lib/reactions');
 const imagineCommand = require('./commands/imagine');
@@ -200,12 +204,14 @@ async function handleMessages(sock, messageUpdate, printLog) {
             } catch (e) { }
         }
 
-        // Check for status number selection (before command prefix check)
+        // Check for compress target size selection (before command prefix check)
         if (!userMessage.startsWith('.')) {
             const rawNum = rawText || userMessage;
             if (/^\d+$/.test(rawNum.trim())) {
-                const handled = await handleStatusSelection(sock, chatId, message, rawNum.trim());
-                if (handled) return;
+                const handledCompress = await handleCompressSelection(sock, chatId, message, rawNum.trim());
+                if (handledCompress) return;
+                const handledStatus = await handleStatusSelection(sock, chatId, message, rawNum.trim());
+                if (handledStatus) return;
             }
         }
 
@@ -368,6 +374,22 @@ async function handleMessages(sock, messageUpdate, printLog) {
                 break;
             case userMessage === '.status':
                 await statusCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.pdf':
+                await pdfCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.docx':
+                await docxCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.sticker':
+                await stickerCommand(sock, chatId, message);
+                commandExecuted = true;
+                break;
+            case userMessage === '.compress':
+                await compressCommand(sock, chatId, message);
                 commandExecuted = true;
                 break;
             case userMessage === '.vv' || userMessage === '.viewonce':

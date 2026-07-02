@@ -16,6 +16,10 @@ async function helpCommand(sock, chatId, message) {
 │ ⌬ .vv
 │ ⌬ .url
 │ ⌬ .status
+│ ⌬ .pdf
+│ ⌬ .docx
+│ ⌬ .sticker
+│ ⌬ .compress
 ╰──────────────
 
 「 🔒 OWNER 」
