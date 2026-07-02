@@ -159,23 +159,38 @@ async function downloadAndConvert(url) {
   }
 }
 
-function detectMediaType(item, url, index) {
-  // ruhend-scraper returns items with type field: 2=image, 1=video
-  if (item.type === 1 || item.type === '1') return 'video';
-  if (item.type === 2 || item.type === '2') return 'image';
-  if (item.type === 'video' || item.type === 'Video') return 'video';
-  if (item.type === 'image' || item.type === 'Image') return 'image';
-  // Check URL extension
+function detectMediaType(item, url) {
+  // 1. Check item.type field (most reliable when present)
+  if (item.type === 1 || item.type === '1' || item.type === 'video' || item.type === 'Video') return 'video';
+  if (item.type === 2 || item.type === '2' || item.type === 'image' || item.type === 'Image') return 'image';
+  
+  // 2. Check URL extension
   const urlLower = (item.url || '').toLowerCase();
-  if (/\.(mp4|mov|webm|avi)$/i.test(urlLower)) return 'video';
-  if (/\.(jpg|jpeg|png|webp|gif)$/i.test(urlLower)) return 'image';
-  // Check if URL is from a reel/tv post
+  if (/.(mp4|mov|webm|avi)$/i.test(urlLower)) return 'video';
+  if (/.(jpg|jpeg|png|webp|gif)$/i.test(urlLower)) return 'image';
+  
+  // 3. Check for Instagram video CDN paths (most Instagram video URLs have /v/ in path)
+  if (/\/v[\/\d]/.test(item.url)) return 'video';
+  if (/\/vp\//.test(item.url)) return 'video';
+  
+  // 4. Check parent URL pattern
   if (/\/reel\//i.test(url)) return 'video';
-  // In carousel: odd indices might be video if first was image (common pattern)
-  // Default to image for carousel items without clear type
-  return item.thumbnail ? 'video' : 'image';
+  if (/\/tv\//i.test(url)) return 'video';
+  
+  // 5. Check if URL has video-related query params
+  if (/video|_v_|mp4/i.test(item.url)) return 'video';
+  
+  // 6. For stories
+  if (/\/stories\//i.test(url)) return 'video';
+  
+  // 7. Default: check file size or content-type via URL patterns
+  // If the URL looks like an image CDN (has /n/ or /p/ path), assume image
+  if (/\/[iopn]\//.test(item.url)) return 'image';
+  
+  // 8. Final heuristic: if URL starts with CDN and has no clear indicators, 
+  // try a HEAD request to check content-type
+  return null; // uncertain - caller should handle this
 }
-
 function extractUrl(text) {
   for (const pattern of IG_URL_PATTERNS) {
     const match = text.match(pattern);
@@ -244,7 +259,21 @@ async function instagramCommand(sock, chatId, message) {
     for (let i = 0; i < items.length; i++) {
       try {
         const item = items[i];
-        const isVideo = detectMediaType(item, url, i);
+        let isVideo = detectMediaType(item, url);
+        // If uncertain, try HEAD request to check content-type
+        if (isVideo === null) {
+          try {
+            const headRes = await axios.head(item.url, { 
+              timeout: 5000, 
+              headers: { ...IG_HEADERS, 'Range': 'bytes=0-0' } 
+            });
+            const ct = (headRes.headers['content-type'] || '').toLowerCase();
+            isVideo = ct.startsWith('video/');
+          } catch {
+            // If HEAD fails, assume video if URL contains reel
+            isVideo = /\/reel\//i.test(url);
+          }
+        }
 
         if (isVideo) {
           // Path A: Download buffer + convert (most reliable)
