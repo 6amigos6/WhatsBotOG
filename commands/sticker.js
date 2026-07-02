@@ -1,7 +1,6 @@
 const fs = require('fs-extra');
 const path = require('path');
 const sharp = require('sharp');
-const ffmpeg = require('fluent-ffmpeg');
 const { execSync } = require('child_process');
 
 const TMP = path.join(__dirname, '..', 'temp');
@@ -15,7 +14,7 @@ async function stickerCommand(sock, chatId, message) {
             return;
         }
 
-        await sock.sendMessage(chatId, { react: { text: '\u{1F5BC}', key: message.key } });
+        await sock.sendMessage(chatId, { react: { text: '\u{23F3}', key: message.key } }); // ⏳
 
         const msg = message.message?.extendedTextMessage?.contextInfo;
         const participant = msg?.participant || msg?.remoteJid;
@@ -37,11 +36,10 @@ async function stickerCommand(sock, chatId, message) {
         }
 
         if (!buffer) {
+            await sock.sendMessage(chatId, { react: { text: '\u{274C}', key: message.key } }); // ❌
             await sock.sendMessage(chatId, { text: 'Could not download the media.' }, { quoted: message });
             return;
         }
-
-        await sock.sendMessage(chatId, { react: { text: '\u{2699}\u{FE0F}', key: message.key } }); // ⚙️ processing
 
         let stickerBuffer;
         if (mediaType === 'image' || mediaType === 'sticker') {
@@ -58,11 +56,6 @@ async function stickerCommand(sock, chatId, message) {
 
         await sock.sendMessage(chatId, { react: { text: '\u{2705}', key: message.key } }); // ✅
         await sock.sendMessage(chatId, { sticker: stickerBuffer });
-        
-        // Clear reaction after a moment
-        setTimeout(async () => {
-            try { await sock.sendMessage(chatId, { react: { text: '', key: message.key } }); } catch {}
-        }, 2000);
 
     } catch (error) {
         console.error('[Sticker] Error:', error.message);
@@ -74,94 +67,103 @@ async function stickerCommand(sock, chatId, message) {
 async function createImageSticker(buffer) {
     return await sharp(buffer)
         .resize(512, 512, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-        .webp({ 
-            quality: 90,
-            alphaQuality: 90,
-            effort: 4  // balance speed vs compression
-        })
+        .webp({ quality: 90, alphaQuality: 90, effort: 4 })
         .toBuffer();
 }
 
 async function createVideoSticker(buffer) {
     const inputPath = path.join(TMP, 'sticker_in_' + Date.now() + '.mp4');
     const outputPath = path.join(TMP, 'sticker_out_' + Date.now() + '.webp');
-    
+
     fs.writeFileSync(inputPath, buffer);
-    
+
     try {
-        // Step 1: Get video duration and trim if needed (max 10 seconds)
+        // Get video duration using ffprobe
         let duration = 0;
         try {
             const probeOut = execSync(
                 'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 ' +
                 JSON.stringify(inputPath),
-                { timeout: 5000, encoding: 'utf-8' }
+                { timeout: 5000, encoding: 'utf8' }
             );
-            duration = parseFloat(probeOut.trim()) || 0;
+            duration = parseFloat((probeOut || '').toString().trim()) || 0;
         } catch (e) {
-            // ffprobe might fail on some files, continue with default
+            console.log('[Sticker] ffprobe failed, assuming short video');
         }
-        
-        // Limit to max 6 seconds for sticker
-        const maxDuration = Math.min(duration || 6, 6);
-        
-        // Step 2: Convert to WebP with WhatsApp-compatible settings
-        await new Promise((resolve, reject) => {
-            const cmd = ffmpeg(inputPath);
-            
-            // Trim if needed
-            if (duration > 6) {
-                cmd.duration(6);
-            }
-            
-            cmd.outputOptions([
-                '-c:v', 'libwebp',
-                '-vf', "scale='min(512,iw)':'min(512,ih)':force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000@0.0",
-                '-loop', '0',
-                '-quality', '85',
-                '-preset', 'picture',
-                '-an',
-                '-vsync', '0',
-                '-t', '6'
-            ])
-            .outputOptions(['-strict', 'unofficial'])
-            .output(outputPath)
-            .on('end', resolve)
-            .on('error', reject)
-            .run();
-        });
-        
-        // Read result
+
+        // WhatsApp sticker max duration is ~6 seconds
+        const maxDuration = Math.min(duration || 3, 6);
+
+        // Build ffmpeg filter
+        const filter = 'scale=512:512:force_original_aspect_ratio=decrease,fps=15,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=#00000000';
+
+        // Spawn ffmpeg directly (no shell) to avoid shell escaping issues
+        const args = [
+            '-y',
+            '-i', inputPath,
+            '-c:v', 'libwebp',
+            '-vf', filter,
+            '-loop', '0',
+            '-quality', '90',
+            '-preset', 'picture',
+            '-an'
+        ];
+
+        if (duration > 6) {
+            args.push('-t', '6');
+        }
+
+        args.push(outputPath);
+
+        const result = require('child_process').spawnSync('ffmpeg', args, { timeout: 30000 });
+
+        if (result.error) {
+            throw new Error('ffmpeg error: ' + (result.error.message || 'Unknown'));
+        }
+        if (result.status !== 0) {
+            const stderr = (result.stderr || '').toString().substring(0, 200);
+            throw new Error('ffmpeg exit code ' + result.status + ': ' + stderr);
+        }
+
+        // Read the result
         const data = fs.readFileSync(outputPath);
-        if (!data || data.length === 0) throw new Error('Empty output');
-        if (data.length > 1024 * 1024) {
-            // File too large (>1MB), try compressing more
-            console.log('[Sticker] File too large (' + (data.length / 1024 / 1024).toFixed(1) + 'MB), re-compressing...');
-            const compressedPath = path.join(TMP, 'sticker_comp_' + Date.now() + '.webp');
-            await new Promise((resolve, reject) => {
-                ffmpeg(outputPath)
-                    .outputOptions([
-                        '-c:v', 'libwebp',
-                        '-quality', '60',
-                        '-preset', 'picture',
-                        '-loop', '0'
-                    ])
-                    .output(compressedPath)
-                    .on('end', resolve)
-                    .on('error', reject)
-                    .run();
-            });
-            const compData = fs.readFileSync(compressedPath);
-            try { fs.unlinkSync(compressedPath); } catch {}
-            fs.unlinkSync(inputPath);
-            fs.unlinkSync(outputPath);
-            return compData;
+        if (!data || data.length < 50) {
+            throw new Error('Generated sticker is too small (' + (data ? data.length : 0) + ' bytes)');
         }
-        
+
+        // Verify RIFF/WebP header
+        const isWebP = data[0] === 0x52 && data[1] === 0x49 && 
+                       data[2] === 0x46 && data[3] === 0x46;
+        if (!isWebP) {
+            throw new Error('Generated file is not a valid WebP');
+        }
+
+        // If >900KB, recompress with lower quality
+        if (data.length > 900 * 1024) {
+            console.log('[Sticker] File too large, re-compressing...');
+            const compressedPath = path.join(TMP, 'sticker_comp_' + Date.now() + '.webp');
+            const compResult = require('child_process').spawnSync('ffmpeg', [
+                '-y', '-i', outputPath,
+                '-c:v', 'libwebp',
+                '-quality', '60',
+                '-preset', 'picture',
+                '-loop', '0',
+                compressedPath
+            ], { timeout: 30000 });
+
+            if (compResult.status === 0) {
+                const compData = fs.readFileSync(compressedPath);
+                try { fs.unlinkSync(compressedPath); } catch {}
+                fs.unlinkSync(inputPath);
+                fs.unlinkSync(outputPath);
+                return compData;
+            }
+        }
+
         fs.unlinkSync(inputPath);
         fs.unlinkSync(outputPath);
         return data;
-        
+
     } catch (e) {
         try { fs.unlinkSync(inputPath); } catch {}
         try { fs.unlinkSync(outputPath); } catch {}
