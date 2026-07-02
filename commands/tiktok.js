@@ -45,7 +45,7 @@ async function fetchTikWM(url) {
   return {
     videoUrl: d.hdplay || d.play || d.wmplay || '',
     watermarkUrl: d.wmplay || '',
-    title: d.title || 'TikTok Video',
+    title: d.title || 'Video',
     cover: d.cover || '',
     music: d.music || '',
     author: d.author || d.unique_id || '',
@@ -232,7 +232,7 @@ async function tiktokCommand(sock, chatId, message) {
     if (!result?.videoUrl) {
       console.error(`All TikTok APIs failed: ${errors.join(' | ')}`);
       return await sock.sendMessage(chatId, {
-        text: '❌ TikTok download unavailable. The video may be private or restricted.'
+        text: '❌ Download unavailable. The video may be private or restricted.'
       }, { quoted: message });
     }
 

@@ -68,7 +68,7 @@ async function downloadYouTube(sock, chatId, url) {
       if (vid?.thumbnail) {
         await sock.sendMessage(chatId, {
           image: { url: vid.thumbnail },
-          caption: `🎵 ${vid.title}\n👤 ${vid.author?.name || '?'}\n⏱ ${vid.timestamp || '?'}\n\nDownloaded By Gasham`
+          caption: `${vid.title}\n👤 ${vid.author?.name || '?'}\n⏱ ${vid.timestamp || '?'}\n\nDownloaded By Gasham`
         });
       }
     } catch (e) { console.log("YT thumb error:", e.message); }
@@ -210,7 +210,7 @@ async function replyCommand(sock, chatId, message, args) {
     await sock.sendMessage(chatId, {
       text: "✅ *Reply Mode ON*\n\n"
         + "• Auto-download is now *disabled*.\n"
-        + "• Reply to a YouTube/Instagram/TikTok link with `.reply` to download manually."
+        + "• Reply to a media link with `.reply` to download manually."
     });
     return;
   }
@@ -220,8 +220,8 @@ async function replyCommand(sock, chatId, message, args) {
     await sock.sendMessage(chatId, {
       text: "❌ *Reply Mode OFF*\n\n"
         + "• Auto-download is now *enabled*.\n"
-        + "• Simply send a YouTube link → MP3 downloads automatically.\n"
-        + "• Instagram/TikTok links also auto-download."
+        + "• Simply send a media link → auto-download.\n"
+        + "• Auto-download enabled for all supported media."
     });
     return;
   }
@@ -239,7 +239,7 @@ async function replyCommand(sock, chatId, message, args) {
     const url = extractUrl(quotedText);
     if (!url) {
       await sock.sendMessage(chatId, {
-        text: "❌ Reply to a valid YouTube, Instagram or TikTok link with `.reply`.",
+        text: "❌ Reply to a valid media link with `.reply`.",
       });
       return;
     }
@@ -247,7 +247,7 @@ async function replyCommand(sock, chatId, message, args) {
     const platform = detectPlatform(url);
     if (!platform) {
       await sock.sendMessage(chatId, {
-        text: "❌ Unsupported link. Supported: YouTube, Instagram, TikTok.",
+        text: "❌ Unsupported link format.",
       });
       return;
     }
@@ -271,9 +271,9 @@ async function replyCommand(sock, chatId, message, args) {
   await sock.sendMessage(chatId, {
     text: "📥 *Reply Download System*\n\n"
       + "Status: " + (isReplyEnabled() ? "✅ ON (Manual)" : "❌ OFF (Auto)") + "\n\n"
-      + "• `.reply off` → Auto-download YouTube links as MP3\n"
+      + "• `.reply off` → Auto-download media links\n"
       + "• `.reply on` → Manual download via `.reply` to link\n\n"
-      + "Supported: YouTube (MP3) • Instagram (Reel/Post) • TikTok (Video)"
+      + "Supported: All media links"
   });
 }
 

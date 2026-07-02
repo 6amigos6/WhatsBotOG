@@ -4,7 +4,7 @@ const path = require('path');
 
 async function helpCommand(sock, chatId, message) {
     const menuMessage = `╭───────── ⚓ ─────────╮
-          𝘽𝙤𝙩 𝘾𝙧𝙚𝙖𝙩𝙚𝙙 𝙗𝙮 𝙊𝙍𝙐𝙅𝙊𝙑        
+          𝘽𝙤𝙩 𝘾𝙧𝙚𝙖𝙩𝙚𝙙 𝙗𝙮 𝙂𝘼𝙎𝙃𝘼𝙈        
             🤖 𝘽𝙊𝙏 𝙈𝙀𝙉𝙐 • 𝙫6.6           
 ╰─────────────────────╯
 
@@ -41,9 +41,7 @@ async function helpCommand(sock, chatId, message) {
 「 📥 DOWNLOAD 」
 ╭──────────────
 │ 📥 .reply [on/off]
-│ 📺 YouTube → Send Link
-│ 📸 Instagram → Send Link
-│ 📱 TikTok → Send Link
+│ 📎 Send Media Link (Auto-Detect)
 ╰──────────────
 `;
 
