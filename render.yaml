@@ -1,13 +1,13 @@
 services:
   - type: worker
-    name: orujov-bot
+    name: gasham-bot
     env: node
-    buildCommand: npm install
-    startCommand: node index.js
+    buildCommand: npm install --legacy-peer-deps
+    startCommand: node --max-old-space-size=512 index.js
     envVars:
       - key: TELEGRAM_TOKEN
         sync: false
       - key: OWNER_NUMBER
-        value: "994501234567"
+        value: ""
     autoDeploy: false
     plan: free
