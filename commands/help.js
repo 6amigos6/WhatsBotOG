@@ -41,7 +41,9 @@ async function helpCommand(sock, chatId, message) {
 「 📥 DOWNLOAD 」
 ╭──────────────
 │ 📥 .reply [on/off]
-│ 📎 Send Media Link (Auto-Detect)
+│ 📺 YouTube → Send Link
+│ 📸 Instagram → Send Link
+│ 📱 TikTok → Send Link
 ╰──────────────
 `;
 
