@@ -23,7 +23,8 @@ let bot = null
 const userStates = {}
 
 function startBot(token) {
-  bot = new TelegramBot(token, { polling: true, filepath: true })
+  process.env.NTBA_FIX_319 = "1"
+bot = new TelegramBot(token, { polling: true })
   console.log("Telegram Bot started!")
 
   bot.onText(/\/start/, async (msg) => {
