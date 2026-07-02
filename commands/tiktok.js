@@ -237,10 +237,7 @@ async function tiktokCommand(sock, chatId, message) {
     }
 
     // Build caption
-    let caption = '𝗗𝗢𝗪𝗡𝗟𝗢𝗔𝗗𝗘𝗗 𝗕𝗬 𝗢𝗥𝗨𝗝𝗢𝗩';
-    if (result.title) caption += `\n\n📝 ${result.title}`;
-    if (result.author) caption += `\n👤 ${result.author}`;
-    if (!result.noWatermark) caption += '\n⚠️ Watermark version';
+    let caption = 'Downloaded By Gasham';
 
     // Handle slideshow
     if (result.isSlideshow && result.images?.length > 0) {
@@ -282,7 +279,7 @@ async function tiktokCommand(sock, chatId, message) {
       try {
         const buf2 = await downloadVideoBuffer(result.watermarkUrl);
         if (buf2?.length > 0) {
-          await sock.sendMessage(chatId, { video: buf2, mimetype: 'video/mp4', caption: caption + '\n⚠️ Watermark version' }, { quoted: message });
+          await sock.sendMessage(chatId, { video: buf2, mimetype: 'video/mp4', caption: caption }, { quoted: message });
           return;
         }
       } catch (e) {

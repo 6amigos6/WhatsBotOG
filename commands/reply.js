@@ -68,7 +68,7 @@ async function downloadYouTube(sock, chatId, url) {
       if (vid?.thumbnail) {
         await sock.sendMessage(chatId, {
           image: { url: vid.thumbnail },
-          caption: `╭─ 🎵 *YOUTUBE MP3*\n│\n│ 📌 ${vid.title}\n│ 👤 ${vid.author?.name || '?'}\n│ ⏱ ${vid.timestamp || '?'}\n╰────────────────`
+          caption: `🎵 ${vid.title}\n👤 ${vid.author?.name || '?'}\n⏱ ${vid.timestamp || '?'}\n\nDownloaded By Gasham`
         });
       }
     } catch (e) { console.log("YT thumb error:", e.message); }
@@ -98,7 +98,7 @@ async function downloadYouTube(sock, chatId, url) {
       audio: { url: tempFilePath },
       mimetype: 'audio/mp4',
       fileName: `youtube_audio_${Date.now()}.m4a`,
-      caption: '⬇️ Downloaded by Gasham'
+      caption: 'Downloaded By Gasham'
     });
 
     // Cleanup
@@ -131,7 +131,7 @@ async function downloadYouTube(sock, chatId, url) {
         if (buf.length > 1000) {
           await sock.sendMessage(chatId, {
             audio: buf, mimetype: 'audio/mp4',
-            caption: '⬇️ Downloaded by Gasham'
+            caption: 'Downloaded By Gasham'
           });
           console.log(`✅ YT audio (fallback): ${(buf.length/1024/1024).toFixed(2)}MB`);
           return true;
@@ -156,8 +156,8 @@ async function downloadInstagram(sock, chatId, url) {
           });
           const buf = Buffer.from(res.data);
           const isVideo = typeof mediaUrl === "string" && mediaUrl.includes(".mp4");
-          if (isVideo) await sock.sendMessage(chatId, { video: buf, caption: "📸 Instagram" });
-          else await sock.sendMessage(chatId, { image: buf, caption: "📸 Instagram" });
+          if (isVideo) await sock.sendMessage(chatId, { video: buf, caption: 'Downloaded By Gasham' });
+          else await sock.sendMessage(chatId, { image: buf, caption: 'Downloaded By Gasham' });
         }
         return true;
       }
@@ -173,7 +173,7 @@ async function downloadTikTok(sock, chatId, url) {
       const result = await ttdl(url);
       if (result?.video) {
         const res = await axios.get(result.video, { responseType: "arraybuffer", timeout: 30000 });
-        await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: "🎵 TikTok" });
+        await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: 'Downloaded By Gasham' });
         return true;
       }
       if (result?.data?.length > 0) {
@@ -182,7 +182,7 @@ async function downloadTikTok(sock, chatId, url) {
           const res = await axios.get(typeof mediaUrl === "string" ? mediaUrl : mediaUrl, {
             responseType: "arraybuffer", timeout: 30000,
           });
-          await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: "🎵 TikTok" });
+          await sock.sendMessage(chatId, { video: Buffer.from(res.data), caption: 'Downloaded By Gasham' });
         }
         return true;
       }
@@ -192,7 +192,7 @@ async function downloadTikTok(sock, chatId, url) {
       const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`, { timeout: 15000 });
       if (res.data?.data?.play) {
         const mediaRes = await axios.get(res.data.data.play, { responseType: "arraybuffer", timeout: 30000 });
-        await sock.sendMessage(chatId, { video: Buffer.from(mediaRes.data), caption: "🎵 TikTok" });
+        await sock.sendMessage(chatId, { video: Buffer.from(mediaRes.data), caption: 'Downloaded By Gasham' });
         return true;
       }
     } catch (e) { console.log("TikWM failed:", e.message); }
